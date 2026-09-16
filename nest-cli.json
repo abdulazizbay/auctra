@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/auctra-api/src",
+  "monorepo": true,
+  "root": "apps/auctra-api",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/auctra-api/tsconfig.app.json"
+  },
+  "projects": {
+    "auctra-api": {
+      "type": "application",
+      "root": "apps/auctra-api",
+      "entryFile": "main",
+      "sourceRoot": "apps/auctra-api/src",
+      "compilerOptions": { "tsConfigPath": "apps/auctra-api/tsconfig.app.json" }
+    },
+    "auctra-batch": {
+      "type": "application",
+      "root": "apps/auctra-batch",
+      "entryFile": "main",
+      "sourceRoot": "apps/auctra-batch/src",
+      "compilerOptions": { "tsConfigPath": "apps/auctra-batch/tsconfig.app.json" }
+    }
+  }
+}
