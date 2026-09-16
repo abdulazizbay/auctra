@@ -6,6 +6,8 @@ import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { AppResolver } from "./app.resolver";
 import { DatabaseModule } from "./database/database.module";
+import { ComponentsModule } from "./components/components.module";
+import { T } from "./libs/types/common";
 
 @Module({
   imports: [
@@ -14,7 +16,16 @@ import { DatabaseModule } from "./database/database.module";
       driver: ApolloDriver,
       playground: true,
       autoSchemaFile: true,
+      formatError: (error: T) => {
+        console.log(error);
+        const graphQLFormattedError = {
+          code: error?.extensions?.code,
+          message: error?.extensions?.response?.message || error?.message,
+        };
+        return graphQLFormattedError;
+      },
     }),
+    ComponentsModule,
     DatabaseModule,
   ],
   controllers: [AppController],
