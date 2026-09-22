@@ -15,7 +15,7 @@ export class MemberService {
 			const result = await this.memberModel.create(input);
 			return result;
 		} catch (err) {
-			console.log('Error, Service Model: ', err);
+			console.log('Error, member service: ', err);
 			throw new BadRequestException(Message.USED_MEMBER_NICK_OR_PHONE);
 		}
 	}
