@@ -28,4 +28,10 @@ export class AuthService {
 		member._id = shapeIntoMongoObjectId(member._id);
 		return member;
 	}
+	public async comparePasswords(
+		password: string,
+		hashedPassword: string,
+	): Promise<boolean> {
+		return await bcrypt.compare(password, hashedPassword);
+	}
 }
