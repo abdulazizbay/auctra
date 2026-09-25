@@ -4,12 +4,13 @@ import {
 	InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Member } from '../../libs/dto/member/member';
 import { LoginInput, MemberInput } from '../../libs/dto/member/member.input';
 import { Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
 import { MemberStatus } from '../../libs/enums/member.enum';
+import { MemberUpdate } from '../../libs/dto/member/member.update';
 
 @Injectable()
 export class MemberService {
@@ -51,5 +52,42 @@ export class MemberService {
 		}
 		response.accessToken = await this.authService.createToken(response);
 		return response;
+	}
+	public async updateMember(
+		memberId: Types.ObjectId,
+		input: MemberUpdate,
+	): Promise<Member> {
+		const result = await this.memberModel
+			.findOneAndUpdate(
+				{ _id: memberId, memberStatus: MemberStatus.ACTIVE },
+				input,
+				{
+					new: true,
+					runValidators: true,
+				},
+			)
+			.exec();
+		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		result.accessToken = await this.authService.createToken(result);
+		return result;
+	}
+
+	public async getMember(
+		memberId: Types.ObjectId | null,
+		targetId: Types.ObjectId,
+	): Promise<Member> {
+		const targetMember = await this.memberModel
+			.findOne({
+				_id: targetId,
+				memberStatus: {
+					$in: [MemberStatus.ACTIVE, MemberStatus.BLOCK],
+				},
+			})
+			.lean()
+			.exec();
+		if (!targetMember)
+			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+		// add view
+		return targetMember;
 	}
 }
