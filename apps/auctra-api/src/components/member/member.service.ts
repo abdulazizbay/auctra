@@ -9,6 +9,7 @@ import { Member, Members } from '../../libs/dto/member/member';
 import {
 	LoginInput,
 	MemberInput,
+	MembersInquiry,
 	SellersInquiry,
 } from '../../libs/dto/member/member.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
@@ -130,5 +131,34 @@ export class MemberService {
 			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
 		return result[0];
 	}
-	
+
+	public async getAllMembersByAdmin(input: MembersInquiry): Promise<Members> {
+		const { text, memberSellerStatus, memberStatus, memberType } = input.search;
+		const match: T = {};
+		if (memberSellerStatus) match.memberSellerStatus = memberSellerStatus;
+		if (memberStatus) match.memberStatus = memberStatus;
+		if (memberType) match.memberType = memberType;
+		const sort = {
+			[input.sort ?? 'createdAt']: input.direction ?? Direction.DESC,
+		};
+		if (text) match.memberNick = { $regex: new RegExp(text, 'i') };
+		const result = await this.memberModel
+			.aggregate([
+				{ $match: match },
+				{ $sort: sort },
+				{
+					$facet: {
+						list: [
+							{ $skip: (input.page - 1) * input.limit },
+							{ $limit: input.limit },
+						],
+						metaCounter: [{ $count: 'total' }],
+					},
+				},
+			])
+			.exec();
+		if (!result.length)
+			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+		return result[0];
+	}
 }

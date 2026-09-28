@@ -13,3 +13,11 @@ export const availableSellerSorts = [
 	'memberLikes',
 	"memberViews"
 ];
+
+export const availableMemberSorts = [
+	'createdAt',
+	'updatedAt',
+	'memberLikes',
+	'memberViews',
+	'memberSellerAppliedAt',
+];
