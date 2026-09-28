@@ -19,6 +19,9 @@ export enum Message {
 	NOT_ALLOWED_REQUEST = 'Not Allowed Request!',
 	PROVIDE_ALLOWED_FORMAT = 'Please provide jpg, jpeg or png images!',
 	SELF_FOLLOW_DENIED = 'Self follow is denied!',
+
+	INVALID_LOT_TIME = 'Lot must start now or later and end after it starts!',
+	INVALID_CEILING_PRICE = 'Ceiling price must be higher than start price!',
 }
 
 export enum Direction {
