@@ -1,6 +1,6 @@
 import { Field, InputType } from '@nestjs/graphql';
-import { IsEmail, IsOptional, Length } from 'class-validator';
-import { MemberLocation } from '../../enums/member.enum';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, Length } from 'class-validator';
+import { MemberLocation, MemberSellerStatus, MemberStatus } from '../../enums/member.enum';
 import { Types } from 'mongoose';
 
 @InputType()
@@ -43,4 +43,23 @@ export class MemberUpdate {
 	@IsOptional()
 	@Field(() => String, { nullable: true })
 	memberAddress?: string;
+}
+
+
+@InputType()
+export class SellerApply {
+	@IsNotEmpty()
+	@Field(() => String)
+	memberSellerDocUrl!: string;
+}
+
+@InputType()
+export class SellerStatusUpdate {
+	@IsNotEmpty()
+	@Field(() => String)
+	_id!: Types.ObjectId;
+
+	@IsIn([MemberSellerStatus.APPROVED, MemberSellerStatus.REJECTED])
+	@Field(() => MemberSellerStatus)
+	memberSellerStatus!: MemberSellerStatus;
 }

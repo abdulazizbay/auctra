@@ -14,8 +14,12 @@ import {
 } from '../../libs/dto/member/member.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
-import { MemberStatus, MemberType } from '../../libs/enums/member.enum';
-import { MemberUpdate } from '../../libs/dto/member/member.update';
+import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
+import {
+	MemberUpdate,
+	SellerApply,
+	SellerStatusUpdate,
+} from '../../libs/dto/member/member.update';
 import { T } from '../../libs/types/common';
 
 @Injectable()
@@ -132,6 +136,27 @@ export class MemberService {
 		return result[0];
 	}
 
+	public async applySeller(memberId: Types.ObjectId, input: SellerApply): Promise<Member> {
+		const result = await this.memberModel
+			.findOneAndUpdate(
+				{
+					_id: memberId,
+					memberType: MemberType.USER,
+					memberStatus: MemberStatus.ACTIVE,
+					memberSellerStatus: { $in: [MemberSellerStatus.NONE, MemberSellerStatus.REJECTED] },
+				},
+				{
+					memberSellerDocUrl: input.memberSellerDocUrl,
+					memberSellerStatus: MemberSellerStatus.PENDING,
+					memberSellerAppliedAt: new Date(),
+				},
+				{ new: true },
+			)
+			.exec();
+		if (!result) throw new BadRequestException(Message.NOT_ALLOWED_REQUEST);
+		return result;
+	}
+
 	public async getAllMembersByAdmin(input: MembersInquiry): Promise<Members> {
 		const { text, memberSellerStatus, memberStatus, memberType } = input.search;
 		const match: T = {};
@@ -160,5 +185,26 @@ export class MemberService {
 		if (!result.length)
 			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
 		return result[0];
+	}
+
+	public async updateMemberByAdmin(input: MemberUpdate): Promise<Member> {
+		const { _id, ...update } = input;
+		const result = await this.memberModel
+			.findOneAndUpdate({ _id }, update, { new: true, runValidators: true })
+			.exec();
+		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		return result;
+	}
+
+	public async updateSellerStatusByAdmin(input: SellerStatusUpdate): Promise<Member> {
+		const { _id, memberSellerStatus } = input;
+		const update: T = { memberSellerStatus };
+		if (memberSellerStatus === MemberSellerStatus.APPROVED) update.memberType = MemberType.SELLER;
+
+		const result = await this.memberModel
+			.findOneAndUpdate({ _id, memberSellerStatus: MemberSellerStatus.PENDING }, update, { new: true })
+			.exec();
+		if (!result) throw new BadRequestException(Message.NOT_ALLOWED_REQUEST);
+		return result;
 	}
 }
