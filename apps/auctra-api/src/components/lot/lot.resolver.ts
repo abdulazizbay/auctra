@@ -3,6 +3,7 @@ import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Types } from 'mongoose';
 import { Lot, Lots } from '../../libs/dto/lot/lot';
 import { LotInput, LotsInquiry } from '../../libs/dto/lot/lot.input';
+import { LotUpdate } from '../../libs/dto/lot/lot.update';
 import { MemberType } from '../../libs/enums/member.enum';
 import { shapeIntoMongoObjectId } from '../../libs/config';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
@@ -45,5 +46,28 @@ export class LotResolver {
 	): Promise<Lots> {
 		console.log('Query: getLots');
 		return await this.lotService.getLots(memberId, input);
+	}
+
+	@Roles(MemberType.SELLER)
+	@UseGuards(RolesGuard)
+	@Mutation(() => Lot)
+	public async updateLot(
+		@Args('input') input: LotUpdate,
+		@AuthMember('_id') memberId: Types.ObjectId,
+	): Promise<Lot> {
+		console.log('Mutation: updateLot');
+		input._id = shapeIntoMongoObjectId(input._id);
+		return await this.lotService.updateLot(memberId, input);
+	}
+
+	// Admin
+
+	@Roles(MemberType.ADMIN)
+	@UseGuards(RolesGuard)
+	@Mutation(() => Lot)
+	public async updateLotByAdmin(@Args('input') input: LotUpdate): Promise<Lot> {
+		console.log('Mutation: updateLotByAdmin');
+		input._id = shapeIntoMongoObjectId(input._id);
+		return await this.lotService.updateLotByAdmin(input);
 	}
 }

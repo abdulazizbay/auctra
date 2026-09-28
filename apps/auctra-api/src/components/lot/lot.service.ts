@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lot, Lots } from '../../libs/dto/lot/lot';
 import { LotInput, LotsInquiry } from '../../libs/dto/lot/lot.input';
+import { LotUpdate } from '../../libs/dto/lot/lot.update';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { LotStatus, publicLotStatuses } from '../../libs/enums/lot.enum';
 import { shapeIntoMongoObjectId } from '../../libs/config';
@@ -22,7 +23,7 @@ export class LotService {
 	): Promise<Lot> {
 		const now = new Date();
 		const lotStartsAt = input.lotStartsAt ?? now;
-		// clock chceck, give 1min
+		// clock check, give 1min
 		if (
 			lotStartsAt.getTime() < now.getTime() - 60_000 ||
 			input.lotEndsAt <= lotStartsAt
@@ -108,5 +109,56 @@ export class LotService {
 			])
 			.exec();
 		return result[0];
+	}
+
+	public async updateLot(
+		memberId: Types.ObjectId,
+		input: LotUpdate,
+	): Promise<Lot> {
+		if (input.lotEndsAt && input.lotEndsAt <= new Date())
+			throw new BadRequestException(Message.INVALID_LOT_TIME);
+
+		const { _id, ...update } = input as T;
+		if (input.lotStartPrice != null)
+			update.lotCurrentPrice = input.lotStartPrice;
+		if (input.lotStatus === LotStatus.CANCELLED)
+			update.lotClosedAt = new Date();
+
+		const result = await this.lotModel
+			.findOneAndUpdate(
+				{
+					_id,
+					memberId,
+					lotBids: 0,
+					lotStatus: { $in: [LotStatus.SCHEDULED, LotStatus.OPEN] },
+				},
+				update,
+				{ new: true, runValidators: true },
+			)
+			.exec();
+		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
+		return result;
+	}
+
+	public async updateLotByAdmin(input: LotUpdate): Promise<Lot> {
+		if (input.lotEndsAt && input.lotEndsAt <= new Date())
+			throw new BadRequestException(Message.INVALID_LOT_TIME);
+
+		const { _id, ...update } = input as T;
+		const filter: T = {
+			_id,
+			lotStatus: { $in: [LotStatus.SCHEDULED, LotStatus.OPEN] },
+		};
+		if (input.lotStatus === LotStatus.CANCELLED)
+			update.lotClosedAt = new Date();
+		else filter.lotBids = 0;
+		if (input.lotStartPrice != null)
+			update.lotCurrentPrice = input.lotStartPrice;
+
+		const result = await this.lotModel
+			.findOneAndUpdate(filter, update, { new: true, runValidators: true })
+			.exec();
+		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
+		return result;
 	}
 }
