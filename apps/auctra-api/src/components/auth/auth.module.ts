@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
+import { MongooseModule } from '@nestjs/mongoose';
+import MemberSchema from '../../schemas/Member.model';
 
 @Module({
 	imports: [
+		MongooseModule.forFeature([{ name: 'Member', schema: MemberSchema }]),
 		JwtModule.registerAsync({
 			useFactory: () => ({
 				secret: process.env.SECRET_TOKEN,

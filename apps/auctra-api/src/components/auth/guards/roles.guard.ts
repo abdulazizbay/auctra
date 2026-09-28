@@ -4,6 +4,7 @@ import {
 	ExecutionContext,
 	Injectable,
 	ForbiddenException,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthService } from '../auth.service';
@@ -37,7 +38,7 @@ export class RolesGuard implements CanActivate {
 			const authMember = await this.authService.verifyToken(token);
 
 			if (!authMember) {
-				throw new ForbiddenException(Message.ONLY_SPECIFIC_ROLES_ALLOWED);
+				throw new UnauthorizedException(Message.NOT_AUTHENTICATED);
 			}
 
 			const hasPermission = roles.indexOf(authMember.memberType) > -1;
