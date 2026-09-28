@@ -22,9 +22,10 @@ registerEnumType(LotCondition, { name: 'LotCondition' });
 export enum LotStatus {
 	SCHEDULED = 'SCHEDULED',
 	OPEN = 'OPEN',
-	CLOSING = 'CLOSING',
 	SOLD = 'SOLD',
 	UNSOLD = 'UNSOLD',
 	CANCELLED = 'CANCELLED',
 }
 registerEnumType(LotStatus, { name: 'LotStatus' });
+
+export const publicLotStatuses = [LotStatus.SCHEDULED, LotStatus.OPEN, LotStatus.SOLD, LotStatus.UNSOLD];

@@ -21,3 +21,12 @@ export const availableMemberSorts = [
 	'memberViews',
 	'memberSellerAppliedAt',
 ];
+
+export const availableLotSorts = [
+	'createdAt',
+	'lotEndsAt',
+	'lotCurrentPrice',
+	'lotBids',
+	'lotWatchers',
+	'lotPopular',
+];

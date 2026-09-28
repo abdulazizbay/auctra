@@ -1,6 +1,18 @@
 import { Field, InputType, Int } from '@nestjs/graphql';
-import { ArrayMaxSize, ArrayNotEmpty, IsInt, IsNotEmpty, IsOptional, Length, Min } from 'class-validator';
-import { LotCategory, LotCondition } from '../../enums/lot.enum';
+import {
+	ArrayMaxSize,
+	ArrayNotEmpty,
+	IsIn,
+	IsInt,
+	IsNotEmpty,
+	IsOptional,
+	Length,
+	Max,
+	Min,
+} from 'class-validator';
+import { LotCategory, LotCondition, LotStatus, publicLotStatuses } from '../../enums/lot.enum';
+import { availableLotSorts } from '../../config';
+import { Direction } from '../../enums/common.enum';
 
 @InputType()
 export class LotInput {
@@ -55,4 +67,72 @@ export class LotInput {
 	@IsNotEmpty()
 	@Field(() => Date)
 	lotEndsAt!: Date;
+}
+
+@InputType()
+class PricesRange {
+	@IsInt()
+	@Min(0)
+	@Field(() => Int)
+	start!: number;
+
+	@IsInt()
+	@Min(0)
+	@Field(() => Int)
+	end!: number;
+}
+
+@InputType()
+class LISearch {
+	@IsOptional()
+	@Field(() => String, { nullable: true })
+	memberId?: string;
+
+	@IsOptional()
+	@IsIn(publicLotStatuses)
+	@Field(() => LotStatus, { nullable: true })
+	lotStatus?: LotStatus;
+
+	@IsOptional()
+	@Field(() => [LotCategory], { nullable: true })
+	lotCategoryList?: LotCategory[];
+
+	@IsOptional()
+	@Field(() => [LotCondition], { nullable: true })
+	lotConditionList?: LotCondition[];
+
+	@IsOptional()
+	@Field(() => PricesRange, { nullable: true })
+	pricesRange?: PricesRange;
+
+	@IsOptional()
+	@Field(() => String, { nullable: true })
+	text?: string;
+}
+
+@InputType()
+export class LotsInquiry {
+	@IsNotEmpty()
+	@Min(1)
+	@Field(() => Int)
+	page!: number;
+
+	@IsNotEmpty()
+	@Min(1)
+	@Max(100)
+	@Field(() => Int)
+	limit!: number;
+
+	@IsOptional()
+	@IsIn(availableLotSorts)
+	@Field(() => String, { nullable: true })
+	sort?: string;
+
+	@IsOptional()
+	@Field(() => Direction, { nullable: true })
+	direction?: Direction;
+
+	@IsNotEmpty()
+	@Field(() => LISearch)
+	search!: LISearch;
 }
