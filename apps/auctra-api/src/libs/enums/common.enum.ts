@@ -23,6 +23,7 @@ export enum Message {
 	INVALID_LOT_TIME = 'Lot must start now or later and end after it starts!',
 	INVALID_CEILING_PRICE = 'Ceiling price must be higher than start price!',
 	LOT_NOT_EDITABLE = 'Lot not found, already has bids, or is closed!',
+	BID_NOT_ACCEPTED = 'Bid not accepted: lot is closed, bid is too low, it is your own lot, or you are already the highest bidder!',
 }
 
 export enum Direction {

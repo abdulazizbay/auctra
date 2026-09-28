@@ -161,4 +161,45 @@ export class LotService {
 		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
 		return result;
 	}
+
+	public async placeBidOnLot(
+		memberId: Types.ObjectId,
+		lotId: Types.ObjectId,
+		bidPrice: number,
+	): Promise<Lot | null> {
+		const now = new Date();
+		const minPrice = {
+			$cond: [
+				{ $eq: ['$lotBids', 0] },
+				'$lotCurrentPrice',
+				{ $add: ['$lotCurrentPrice', '$lotMinIncrement'] },
+			],
+		};
+
+		return await this.lotModel
+			.findOneAndUpdate(
+				{
+					_id: lotId,
+					lotStatus: LotStatus.OPEN,
+					lotEndsAt: { $gt: now },
+					memberId: { $ne: memberId },
+					lotHighestBidderId: { $ne: memberId },
+					$expr: {
+						$gte: [bidPrice, { $min: [minPrice, { $ifNull: ['$lotCeilingPrice', minPrice] }] }],
+					},
+				},
+				[
+					{ $set: { lotCurrentPrice: { $min: [bidPrice, { $ifNull: ['$lotCeilingPrice', bidPrice] }] } } },
+					{
+						$set: {
+							lotHighestBidderId: memberId,
+							lotBids: { $add: ['$lotBids', 1] },
+							lotEndsAt: { $cond: [{ $eq: ['$lotCurrentPrice', '$lotCeilingPrice'] }, now, '$lotEndsAt'] },
+						},
+					},
+				],
+				{ new: true },
+			)
+			.exec();
+	}
 }

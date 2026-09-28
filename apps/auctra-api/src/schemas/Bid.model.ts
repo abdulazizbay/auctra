@@ -23,4 +23,6 @@ const BidSchema = new Schema(
 );
 
 
+BidSchema.index({ lotId: 1, bidPrice: -1 });
+
 export default BidSchema;

@@ -30,3 +30,12 @@ export const availableLotSorts = [
 	'lotWatchers',
 	'lotPopular',
 ];
+
+export const lookupMember = {
+	$lookup: {
+		from: 'members',
+		localField: 'memberId',
+		foreignField: '_id',
+		as: 'memberData',
+	},
+};
