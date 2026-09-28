@@ -4,7 +4,7 @@ import {
 	InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Lot, Lots } from '../../libs/dto/lot/lot';
 import { LotInput, LotsInquiry } from '../../libs/dto/lot/lot.input';
 import { LotUpdate } from '../../libs/dto/lot/lot.update';
@@ -166,6 +166,7 @@ export class LotService {
 		memberId: Types.ObjectId,
 		lotId: Types.ObjectId,
 		bidPrice: number,
+		session?: ClientSession,
 	): Promise<Lot | null> {
 		const now = new Date();
 		const minPrice = {
@@ -198,7 +199,7 @@ export class LotService {
 						},
 					},
 				],
-				{ new: true },
+				{ new: true, session },
 			)
 			.exec();
 	}

@@ -22,6 +22,8 @@ export class Bid {
 	@Field(() => Date)
 	updatedAt!: Date;
 
+	/** from aggregation **/
+
 	@Field(() => Member, { nullable: true })
 	memberData?: Member;
 }
