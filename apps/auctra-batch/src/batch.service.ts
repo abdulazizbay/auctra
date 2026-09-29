@@ -4,15 +4,15 @@ import { Connection, Model } from 'mongoose';
 import { Lot } from 'apps/auctra-api/src/libs/dto/lot/lot';
 import { LotStatus } from 'apps/auctra-api/src/libs/enums/lot.enum';
 import { OrderStatus } from 'apps/auctra-api/src/libs/enums/order.enum';
-import { T } from 'apps/auctra-api/src/libs/types/common';
+import { Order, OrderItem } from 'apps/auctra-api/src/libs/dto/order/order';
 import { ORDER_PAYMENT_WINDOW } from './lib/config';
 
 @Injectable()
 export class BatchService {
 	constructor(
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
-		@InjectModel('Order') private readonly orderModel: Model<T>,
-		@InjectModel('OrderItem') private readonly orderItemModel: Model<T>,
+		@InjectModel('Order') private readonly orderModel: Model<Order>,
+		@InjectModel('OrderItem') private readonly orderItemModel: Model<OrderItem>,
 		@InjectConnection() private readonly connection: Connection,
 	) {}
 
@@ -92,6 +92,15 @@ export class BatchService {
 				console.log('Error, batchCloseLots:', _id, err);
 			}
 		}
+	}
+
+	public async batchExpireOrders(): Promise<void> {
+		await this.orderModel
+			.updateMany(
+				{ orderStatus: OrderStatus.PENDING_PAYMENT, orderPaymentDueAt: { $lte: new Date() } },
+				{ orderStatus: OrderStatus.EXPIRED },
+			)
+			.exec();
 	}
 
 	getHello(): string {

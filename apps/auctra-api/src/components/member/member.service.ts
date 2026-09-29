@@ -20,7 +20,7 @@ import {
 	SellerApply,
 	SellerStatusUpdate,
 } from '../../libs/dto/member/member.update';
-import { T } from '../../libs/types/common';
+import { StatisticModifier, T } from '../../libs/types/common';
 
 @Injectable()
 export class MemberService {
@@ -205,5 +205,12 @@ export class MemberService {
 			.exec();
 		if (!result) throw new BadRequestException(Message.NOT_ALLOWED_REQUEST);
 		return result;
+	}
+
+	public async memberStatsEditor(input: StatisticModifier): Promise<Member | null> {
+		const { _id, targetKey, modifier } = input;
+		return await this.memberModel
+			.findByIdAndUpdate(_id, { $inc: { [targetKey]: modifier } }, { new: true })
+			.exec();
 	}
 }
