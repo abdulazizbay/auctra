@@ -136,3 +136,17 @@ export class LotsInquiry {
 	@Field(() => LISearch)
 	search!: LISearch;
 }
+
+@InputType()
+export class OrdinaryInquiry {
+	@IsNotEmpty()
+	@Min(1)
+	@Field(() => Int)
+	page!: number;
+
+	@IsNotEmpty()
+	@Min(1)
+	@Max(100)
+	@Field(() => Int)
+	limit!: number;
+}

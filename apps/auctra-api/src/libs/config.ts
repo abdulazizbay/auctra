@@ -1,4 +1,5 @@
- import { Types } from 'mongoose';
+import { Types } from 'mongoose';
+import { T } from './types/common';
 
 export const shapeIntoMongoObjectId = (target: any) => {
 	return typeof target === 'string' ? new Types.ObjectId(target) : target;
@@ -65,4 +66,38 @@ export const lookupBuyerData = {
 		foreignField: '_id',
 		as: 'buyerData',
 	},
+};
+
+export const lookAuthMemberWatched = (memberId: T | null, targetRefId: string = '$_id') => {
+	return {
+		$lookup: {
+			from: 'watches',
+			let: {
+				localLotId: targetRefId,
+				localMemberId: memberId,
+				localMyWatch: true,
+			},
+			pipeline: [
+				{
+					$match: {
+						$expr: {
+							$and: [
+								{ $eq: ['$lotId', '$$localLotId'] },
+								{ $eq: ['$memberId', '$$localMemberId'] },
+							],
+						},
+					},
+				},
+				{
+					$project: {
+						_id: 0,
+						memberId: 1,
+						lotId: 1,
+						myWatch: '$$localMyWatch',
+					},
+				},
+			],
+			as: 'meWatched',
+		},
+	};
 };

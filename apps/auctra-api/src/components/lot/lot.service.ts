@@ -6,16 +6,20 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import { Lot, Lots } from '../../libs/dto/lot/lot';
-import { LotInput, LotsInquiry } from '../../libs/dto/lot/lot.input';
+import { LotInput, LotsInquiry, OrdinaryInquiry } from '../../libs/dto/lot/lot.input';
 import { LotUpdate } from '../../libs/dto/lot/lot.update';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { LotStatus, publicLotStatuses } from '../../libs/enums/lot.enum';
-import { shapeIntoMongoObjectId } from '../../libs/config';
-import { T } from '../../libs/types/common';
+import { lookAuthMemberWatched, shapeIntoMongoObjectId } from '../../libs/config';
+import { StatisticModifier, T } from '../../libs/types/common';
+import { WatchService } from '../watch/watch.service';
 
 @Injectable()
 export class LotService {
-	constructor(@InjectModel('Lot') private readonly lotModel: Model<Lot>) {}
+	constructor(
+		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
+		private readonly watchService: WatchService,
+	) {}
 
 	public async createLot(
 		memberId: Types.ObjectId,
@@ -60,6 +64,7 @@ export class LotService {
 		if (!targetLot)
 			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
 		// add view
+		if (memberId) targetLot.meWatched = await this.watchService.checkWatchExistence(memberId, lotId);
 		return targetLot;
 	}
 
@@ -101,7 +106,7 @@ export class LotService {
 						list: [
 							{ $skip: (input.page - 1) * input.limit },
 							{ $limit: input.limit },
-							//check meWatched
+							lookAuthMemberWatched(memberId),
 						],
 						metaCounter: [{ $count: 'total' }],
 					},
@@ -160,6 +165,33 @@ export class LotService {
 			.exec();
 		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
 		return result;
+	}
+
+	public async watchTargetLot(memberId: Types.ObjectId, lotId: Types.ObjectId): Promise<Lot> {
+		const target = await this.lotModel
+			.findOne({ _id: lotId, lotStatus: { $in: publicLotStatuses } })
+			.exec();
+		if (!target) throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+
+		const modifier = await this.watchService.toggleWatch(memberId, lotId);
+		const result = await this.lotStatsEditor({
+			_id: lotId,
+			targetKey: 'lotWatchers',
+			modifier: modifier,
+		});
+		if (!result) throw new InternalServerErrorException(Message.SOMETHING_WENT_WRONG);
+		return result;
+	}
+
+	public async getWatchedLots(memberId: Types.ObjectId, input: OrdinaryInquiry): Promise<Lots> {
+		return await this.watchService.getWatchedLots(memberId, input);
+	}
+
+	public async lotStatsEditor(input: StatisticModifier): Promise<Lot | null> {
+		const { _id, targetKey, modifier } = input;
+		return await this.lotModel
+			.findByIdAndUpdate(_id, { $inc: { [targetKey]: modifier } }, { new: true })
+			.exec();
 	}
 
 	public async placeBidOnLot(
