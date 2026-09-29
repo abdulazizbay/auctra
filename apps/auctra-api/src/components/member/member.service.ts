@@ -14,6 +14,8 @@ import {
 } from '../../libs/dto/member/member.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import {
 	MemberUpdate,
@@ -27,6 +29,7 @@ export class MemberService {
 	constructor(
 		@InjectModel('Member') private readonly memberModel: Model<Member>,
 		private authService: AuthService,
+		private readonly notificationService: NotificationService,
 	) {}
 	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
@@ -204,6 +207,16 @@ export class MemberService {
 			.findOneAndUpdate({ _id, memberSellerStatus: MemberSellerStatus.PENDING }, update, { new: true })
 			.exec();
 		if (!result) throw new BadRequestException(Message.NOT_ALLOWED_REQUEST);
+
+		await this.notificationService.createNotification({
+			memberId: result._id,
+			notificationType:
+				memberSellerStatus === MemberSellerStatus.APPROVED
+					? NotificationType.SELLER_APPROVED
+					: NotificationType.SELLER_REJECTED,
+			notificationRefId: result._id,
+			notificationRefType: NotificationRefType.MEMBER,
+		});
 		return result;
 	}
 

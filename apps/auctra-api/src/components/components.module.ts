@@ -6,6 +6,7 @@ import { BidModule } from './bid/bid.module';
 import { OrderModule } from './order/order.module';
 import { ReviewModule } from './review/review.module';
 import { MessageModule } from './message/message.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
 	imports: [
@@ -16,6 +17,7 @@ import { MessageModule } from './message/message.module';
 		OrderModule,
 		ReviewModule,
 		MessageModule,
+		NotificationModule,
 	],
 })
 export class ComponentsModule {}

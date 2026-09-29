@@ -231,7 +231,7 @@ export class LotService {
 						},
 					},
 				],
-				{ new: true, session },
+				{ new: false, session },
 			)
 			.exec();
 	}

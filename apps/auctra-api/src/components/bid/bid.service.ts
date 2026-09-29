@@ -6,7 +6,9 @@ import { BidInput, BidsInquiry } from '../../libs/dto/bid/bid.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { lookupMember } from '../../libs/config';
 import { T } from '../../libs/types/common';
+import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { LotService } from '../lot/lot.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class BidService {
@@ -14,23 +16,39 @@ export class BidService {
 		@InjectModel('Bid') private readonly bidModel: Model<Bid>,
 		@InjectConnection() private readonly connection: Connection,
 		private readonly lotService: LotService,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	public async placeBid(memberId: Types.ObjectId, input: BidInput): Promise<Bid> {
 		return await this.connection.transaction(async (session) => {
-			const lot = await this.lotService.placeBidOnLot(memberId, input.lotId, input.bidPrice, session);
-			if (!lot) throw new BadRequestException(Message.BID_NOT_ACCEPTED);
+			const previousLot = await this.lotService.placeBidOnLot(memberId, input.lotId, input.bidPrice, session);
+			if (!previousLot) throw new BadRequestException(Message.BID_NOT_ACCEPTED);
+			const bidPrice = Math.min(input.bidPrice, previousLot.lotCeilingPrice ?? input.bidPrice);
 
+			let result: Bid;
 			try {
-				const [result] = await this.bidModel.create(
-					[{ lotId: lot._id, memberId: memberId, bidPrice: lot.lotCurrentPrice }],
+				[result] = await this.bidModel.create(
+					[{ lotId: previousLot._id, memberId: memberId, bidPrice: bidPrice }],
 					{ session },
 				);
-				return result;
 			} catch (err) {
 				console.log('Error, Service.model:', err);
 				throw new BadRequestException(Message.CREATE_FAILED);
 			}
+
+			if (previousLot.lotHighestBidderId) {
+				await this.notificationService.createNotification(
+					{
+						memberId: previousLot.lotHighestBidderId,
+						notificationType: NotificationType.OUTBID,
+						notificationRefId: previousLot._id,
+						notificationRefType: NotificationRefType.LOT,
+						notificationPayload: { lotName: previousLot.lotName, price: bidPrice },
+					},
+					session,
+				);
+			}
+			return result;
 		});
 	}
 

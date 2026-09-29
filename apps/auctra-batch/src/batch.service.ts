@@ -5,6 +5,8 @@ import { Lot } from 'apps/auctra-api/src/libs/dto/lot/lot';
 import { LotStatus } from 'apps/auctra-api/src/libs/enums/lot.enum';
 import { OrderStatus } from 'apps/auctra-api/src/libs/enums/order.enum';
 import { Order, OrderItem } from 'apps/auctra-api/src/libs/dto/order/order';
+import { Notification } from 'apps/auctra-api/src/libs/dto/notification/notification';
+import { NotificationRefType, NotificationType } from 'apps/auctra-api/src/libs/enums/notification.enum';
 import { ORDER_PAYMENT_WINDOW } from './lib/config';
 
 @Injectable()
@@ -13,6 +15,7 @@ export class BatchService {
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
 		@InjectModel('Order') private readonly orderModel: Model<Order>,
 		@InjectModel('OrderItem') private readonly orderItemModel: Model<OrderItem>,
+		@InjectModel('Notification') private readonly notificationModel: Model<Notification>,
 		@InjectConnection() private readonly connection: Connection,
 	) {}
 
@@ -83,6 +86,19 @@ export class BatchService {
 								orderId: order._id,
 								lotId: lot._id,
 								itemPrice: lot.lotCurrentPrice,
+							},
+						],
+						{ session },
+					);
+
+					await this.notificationModel.create(
+						[
+							{
+								memberId: lot.lotHighestBidderId,
+								notificationType: NotificationType.WON,
+								notificationRefId: lot._id,
+								notificationRefType: NotificationRefType.LOT,
+								notificationPayload: { lotName: lot.lotName, price: lot.lotCurrentPrice },
 							},
 						],
 						{ session },

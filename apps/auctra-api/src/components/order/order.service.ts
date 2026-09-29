@@ -8,7 +8,9 @@ import { Direction, Message } from '../../libs/enums/common.enum';
 import { OrderStatus } from '../../libs/enums/order.enum';
 import { lookupOrderItems, lookupOrderLots } from '../../libs/config';
 import { T } from '../../libs/types/common';
+import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberService } from '../member/member.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class OrderService {
@@ -16,6 +18,7 @@ export class OrderService {
 		@InjectModel('Order') private readonly orderModel: Model<Order>,
 		@InjectConnection() private readonly connection: Connection,
 		private readonly memberService: MemberService,
+		private readonly notificationService: NotificationService,
 	) {}
 
 	public async getMyOrders(memberId: Types.ObjectId, input: OrdersInquiry): Promise<Orders> {
@@ -82,6 +85,7 @@ export class OrderService {
 		const { _id, orderStatus, orderAddress } = input;
 		const match: T = { _id };
 		const update: T = { orderStatus };
+		let notificationType: NotificationType;
 
 		if (orderStatus === OrderStatus.PAID) {
 			if (!orderAddress) throw new BadRequestException(Message.ORDER_ADDRESS_REQUIRED);
@@ -89,12 +93,15 @@ export class OrderService {
 			match.orderStatus = OrderStatus.PENDING_PAYMENT;
 			match.orderPaymentDueAt = { $gt: new Date() };
 			update.orderAddress = orderAddress;
+			notificationType = NotificationType.PAYMENT_RECEIVED;
 		} else if (orderStatus === OrderStatus.SHIPPED) {
 			match.sellerId = memberId;
 			match.orderStatus = OrderStatus.PAID;
+			notificationType = NotificationType.SHIPPED;
 		} else {
 			match.buyerId = memberId;
 			match.orderStatus = OrderStatus.SHIPPED;
+			notificationType = NotificationType.ORDER_COMPLETED;
 		}
 
 		return await this.connection.transaction(async (session) => {
@@ -109,6 +116,17 @@ export class OrderService {
 					session,
 				);
 			}
+
+			await this.notificationService.createNotification(
+				{
+					memberId: orderStatus === OrderStatus.SHIPPED ? result.buyerId : result.sellerId,
+					notificationType: notificationType,
+					notificationRefId: result._id,
+					notificationRefType: NotificationRefType.ORDER,
+					notificationPayload: { price: result.orderTotal },
+				},
+				session,
+			);
 			return result;
 		});
 	}
