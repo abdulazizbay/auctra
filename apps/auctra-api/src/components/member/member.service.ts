@@ -4,7 +4,7 @@ import {
 	InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Member, Members } from '../../libs/dto/member/member';
 import {
 	LoginInput,
@@ -207,10 +207,39 @@ export class MemberService {
 		return result;
 	}
 
-	public async memberStatsEditor(input: StatisticModifier): Promise<Member | null> {
+	public async memberStatsEditor(
+		input: StatisticModifier,
+		session?: ClientSession,
+	): Promise<Member | null> {
 		const { _id, targetKey, modifier } = input;
 		return await this.memberModel
-			.findByIdAndUpdate(_id, { $inc: { [targetKey]: modifier } }, { new: true })
+			.findByIdAndUpdate(_id, { $inc: { [targetKey]: modifier } }, { new: true, session })
+			.exec();
+	}
+
+	public async memberRatingEditor(
+		_id: Types.ObjectId,
+		rating: number,
+		session?: ClientSession,
+	): Promise<Member | null> {
+		return await this.memberModel
+			.findByIdAndUpdate(
+				_id,
+				[
+					{
+						$set: {
+							memberAvgRating: {
+								$divide: [
+									{ $add: [{ $multiply: ['$memberAvgRating', '$memberReviewCount'] }, rating] },
+									{ $add: ['$memberReviewCount', 1] },
+								],
+							},
+							memberReviewCount: { $add: ['$memberReviewCount', 1] },
+						},
+					},
+				],
+				{ new: true, session },
+			)
 			.exec();
 	}
 }

@@ -25,6 +25,7 @@ export enum Message {
 	LOT_NOT_EDITABLE = 'Lot not found, already has bids, or is closed!',
 	BID_NOT_ACCEPTED = 'Bid not accepted: lot is closed, bid is too low, it is your own lot, or you are already the highest bidder!',
 	ORDER_ADDRESS_REQUIRED = 'Shipping address is required to pay!',
+	REVIEW_NOT_ALLOWED = 'Only the buyer of a completed order can review it!',
 }
 
 export enum Direction {

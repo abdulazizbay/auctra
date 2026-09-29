@@ -57,3 +57,12 @@ export const lookupOrderLots = {
 		as: 'lotData',
 	},
 };
+
+export const lookupBuyerData = {
+	$lookup: {
+		from: 'members',
+		localField: 'buyerId',
+		foreignField: '_id',
+		as: 'buyerData',
+	},
+};
