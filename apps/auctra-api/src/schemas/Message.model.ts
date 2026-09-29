@@ -24,4 +24,6 @@ const MessageSchema = new Schema(
 );
 
 
+MessageSchema.index({ orderId: 1, createdAt: -1 });
+
 export default MessageSchema;
