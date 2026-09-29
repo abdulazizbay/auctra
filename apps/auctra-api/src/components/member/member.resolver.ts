@@ -1,5 +1,5 @@
 import { Args, Mutation, Resolver, Query } from '@nestjs/graphql';
-import { Member, Members } from '../../libs/dto/member/member';
+import { AuthResponse, Member, Members } from '../../libs/dto/member/member';
 import {
 	LoginInput,
 	MemberInput,
@@ -25,15 +25,22 @@ import { shapeIntoMongoObjectId } from '../../libs/config';
 @Resolver()
 export class MemberResolver {
 	constructor(private readonly memberService: MemberService) {}
-	@Mutation(() => Member)
-	public async signup(@Args('input') input: MemberInput): Promise<Member> {
+	@Mutation(() => AuthResponse)
+	public async signup(@Args('input') input: MemberInput): Promise<AuthResponse> {
 		console.log('Mutation: signup');
 		return await this.memberService.signup(input);
 	}
-	@Mutation(() => Member)
-	public async login(@Args('input') input: LoginInput): Promise<Member> {
+	@Mutation(() => AuthResponse)
+	public async login(@Args('input') input: LoginInput): Promise<AuthResponse> {
 		console.log('Mutation: login');
 		return await this.memberService.login(input);
+	}
+
+	@UseGuards(AuthGuard)
+	@Query(() => Member)
+	public async getMe(@AuthMember() authMember: Member): Promise<Member> {
+		console.log('Query: getMe');
+		return authMember;
 	}
 
 	@Roles(MemberType.USER, MemberType.SELLER, MemberType.ADMIN)

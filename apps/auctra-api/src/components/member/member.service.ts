@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
-import { Member, Members } from '../../libs/dto/member/member';
+import { AuthResponse, Member, Members } from '../../libs/dto/member/member';
 import {
 	LoginInput,
 	MemberInput,
@@ -28,20 +28,20 @@ export class MemberService {
 		@InjectModel('Member') private readonly memberModel: Model<Member>,
 		private authService: AuthService,
 	) {}
-	public async signup(input: MemberInput): Promise<Member> {
+	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
 			input.memberPassword,
 		);
 		try {
 			const result = await this.memberModel.create(input);
-			result.accessToken = await this.authService.createToken(result);
-			return result;
+			const accessToken = await this.authService.createToken(result);
+			return { member: result, accessToken };
 		} catch (err) {
 			console.log('Error, member service: ', err);
 			throw new BadRequestException(Message.USED_MEMBER_NICK_OR_PHONE);
 		}
 	}
-	public async login(input: LoginInput): Promise<Member> {
+	public async login(input: LoginInput): Promise<AuthResponse> {
 		const { memberNick, memberPassword } = input;
 		const response = await this.memberModel
 			.findOne({ memberNick: memberNick })
@@ -60,8 +60,8 @@ export class MemberService {
 		if (!isMatch) {
 			throw new InternalServerErrorException(Message.WRONG_PASSWORD);
 		}
-		response.accessToken = await this.authService.createToken(response);
-		return response;
+		const accessToken = await this.authService.createToken(response);
+		return { member: response, accessToken };
 	}
 	public async updateMember(
 		memberId: Types.ObjectId,
