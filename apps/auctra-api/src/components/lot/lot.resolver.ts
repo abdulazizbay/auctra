@@ -82,6 +82,16 @@ export class LotResolver {
 		return await this.lotService.getWatchedLots(memberId, input);
 	}
 
+	@UseGuards(AuthGuard)
+	@Query(() => Lots)
+	public async getVisitedLots(
+		@Args('input') input: OrdinaryInquiry,
+		@AuthMember('_id') memberId: Types.ObjectId,
+	): Promise<Lots> {
+		console.log('Query: getVisitedLots');
+		return await this.lotService.getVisitedLots(memberId, input);
+	}
+
 	// Admin
 
 	@Roles(MemberType.ADMIN)

@@ -13,12 +13,15 @@ import { LotStatus, publicLotStatuses } from '../../libs/enums/lot.enum';
 import { lookAuthMemberWatched, shapeIntoMongoObjectId } from '../../libs/config';
 import { StatisticModifier, T } from '../../libs/types/common';
 import { WatchService } from '../watch/watch.service';
+import { ViewService } from '../view/view.service';
+import { ViewGroup } from '../../libs/enums/view.enum';
 
 @Injectable()
 export class LotService {
 	constructor(
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
 		private readonly watchService: WatchService,
+		private readonly viewService: ViewService,
 	) {}
 
 	public async createLot(
@@ -63,7 +66,17 @@ export class LotService {
 			.exec();
 		if (!targetLot)
 			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
-		// add view
+		if (memberId && memberId.toString() !== targetLot.memberId.toString()) {
+			const newView = await this.viewService.recordView({
+				memberId: memberId,
+				viewRefId: lotId,
+				viewGroup: ViewGroup.LOT,
+			});
+			if (newView) {
+				await this.lotStatsEditor({ _id: lotId, targetKey: 'lotViews', modifier: 1 });
+				targetLot.lotViews++;
+			}
+		}
 		if (memberId) targetLot.meWatched = await this.watchService.checkWatchExistence(memberId, lotId);
 		return targetLot;
 	}
@@ -185,6 +198,10 @@ export class LotService {
 
 	public async getWatchedLots(memberId: Types.ObjectId, input: OrdinaryInquiry): Promise<Lots> {
 		return await this.watchService.getWatchedLots(memberId, input);
+	}
+
+	public async getVisitedLots(memberId: Types.ObjectId, input: OrdinaryInquiry): Promise<Lots> {
+		return await this.viewService.getVisitedLots(memberId, input);
 	}
 
 	public async lotStatsEditor(input: StatisticModifier): Promise<Lot | null> {

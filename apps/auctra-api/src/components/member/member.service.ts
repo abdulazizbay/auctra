@@ -15,6 +15,8 @@ import {
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
 import { NotificationService } from '../notification/notification.service';
+import { ViewService } from '../view/view.service';
+import { ViewGroup } from '../../libs/enums/view.enum';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import {
@@ -30,6 +32,7 @@ export class MemberService {
 		@InjectModel('Member') private readonly memberModel: Model<Member>,
 		private authService: AuthService,
 		private readonly notificationService: NotificationService,
+		private readonly viewService: ViewService,
 	) {}
 	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
@@ -99,7 +102,17 @@ export class MemberService {
 			.exec();
 		if (!targetMember)
 			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
-		// add view
+		if (memberId && memberId.toString() !== targetId.toString()) {
+			const newView = await this.viewService.recordView({
+				memberId: memberId,
+				viewRefId: targetId,
+				viewGroup: ViewGroup.MEMBER,
+			});
+			if (newView) {
+				await this.memberStatsEditor({ _id: targetId, targetKey: 'memberViews', modifier: 1 });
+				targetMember.memberViews++;
+			}
+		}
 		return targetMember;
 	}
 
