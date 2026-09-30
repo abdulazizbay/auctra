@@ -35,4 +35,6 @@ const CommentSchema = new Schema(
 );
 
 
+CommentSchema.index({ commentRefId: 1, createdAt: -1 });
+
 export default CommentSchema;

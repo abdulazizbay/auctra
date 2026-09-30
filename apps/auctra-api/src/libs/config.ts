@@ -34,6 +34,8 @@ export const availableLotSorts = [
 
 export const availableArticleSorts = ['createdAt', 'updatedAt', 'articleLikes', 'articleViews'];
 
+export const availableCommentSorts = ['createdAt', 'updatedAt'];
+
 export const lookupMember = {
 	$lookup: {
 		from: 'members',
