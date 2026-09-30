@@ -17,6 +17,10 @@ import { AuthService } from '../auth/auth.service';
 import { NotificationService } from '../notification/notification.service';
 import { ViewService } from '../view/view.service';
 import { ViewGroup } from '../../libs/enums/view.enum';
+import { LikeService } from '../like/like.service';
+import { LikeGroup } from '../../libs/enums/like.enum';
+import { LikeInput } from '../../libs/dto/like/like.input';
+import { lookAuthMemberLiked } from '../../libs/config';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import {
@@ -33,6 +37,7 @@ export class MemberService {
 		private authService: AuthService,
 		private readonly notificationService: NotificationService,
 		private readonly viewService: ViewService,
+		private readonly likeService: LikeService,
 	) {}
 	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
@@ -113,7 +118,39 @@ export class MemberService {
 				targetMember.memberViews++;
 			}
 		}
+		if (memberId) {
+			targetMember.meLiked = await this.likeService.checkLikeExistence({
+				memberId: memberId,
+				likeRefId: targetId,
+				likeGroup: LikeGroup.MEMBER,
+			});
+		}
 		return targetMember;
+	}
+
+	public async likeTargetMember(memberId: Types.ObjectId, likeRefId: Types.ObjectId): Promise<Member> {
+		if (memberId.toString() === likeRefId.toString())
+			throw new BadRequestException(Message.SELF_LIKE_DENIED);
+
+		const target = await this.memberModel
+			.findOne({ _id: likeRefId, memberStatus: MemberStatus.ACTIVE })
+			.exec();
+		if (!target) throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+
+		const input: LikeInput = {
+			memberId: memberId,
+			likeRefId: likeRefId,
+			likeGroup: LikeGroup.MEMBER,
+		};
+
+		const modifier: number = await this.likeService.toggleLike(input);
+		const result = await this.memberStatsEditor({
+			_id: likeRefId,
+			targetKey: 'memberLikes',
+			modifier: modifier,
+		});
+		if (!result) throw new InternalServerErrorException(Message.SOMETHING_WENT_WRONG);
+		return result;
 	}
 
 	public async getSellers(
@@ -138,7 +175,7 @@ export class MemberService {
 						list: [
 							{ $skip: (input.page - 1) * input.limit },
 							{ $limit: input.limit },
-							//check meLiked
+							lookAuthMemberLiked(memberId),
 							//check meFollowed
 						],
 						metaCounter: [{ $count: 'total' }],

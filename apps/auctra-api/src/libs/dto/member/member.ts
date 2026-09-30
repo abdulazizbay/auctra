@@ -1,5 +1,6 @@
 import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 import { Types } from 'mongoose';
+import { MeLiked } from '../like/like';
 import {
 	MemberLocation,
 	MemberSellerStatus,
@@ -79,6 +80,11 @@ export class Member {
 
 	@Field(() => Date)
 	updatedAt!: Date;
+
+	/** from aggregation **/
+
+	@Field(() => [MeLiked], { nullable: true })
+	meLiked?: MeLiked[];
 }
 
 @ObjectType()

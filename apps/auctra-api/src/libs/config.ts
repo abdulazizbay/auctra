@@ -101,3 +101,37 @@ export const lookAuthMemberWatched = (memberId: T | null, targetRefId: string = 
 		},
 	};
 };
+
+export const lookAuthMemberLiked = (memberId: T | null, targetRefId: string = '$_id') => {
+	return {
+		$lookup: {
+			from: 'likes',
+			let: {
+				localLikeRefId: targetRefId,
+				localMemberId: memberId,
+				localMyFavorite: true,
+			},
+			pipeline: [
+				{
+					$match: {
+						$expr: {
+							$and: [
+								{ $eq: ['$likeRefId', '$$localLikeRefId'] },
+								{ $eq: ['$memberId', '$$localMemberId'] },
+							],
+						},
+					},
+				},
+				{
+					$project: {
+						_id: 0,
+						memberId: 1,
+						likeRefId: 1,
+						myFavorite: '$$localMyFavorite',
+					},
+				},
+			],
+			as: 'meLiked',
+		},
+	};
+};
