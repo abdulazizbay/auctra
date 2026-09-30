@@ -7,6 +7,7 @@ import { AppService } from "./app.service";
 import { AppResolver } from "./app.resolver";
 import { DatabaseModule } from "./database/database.module";
 import { ComponentsModule } from "./components/components.module";
+import { SocketModule } from "./socket/socket.module";
 import { T } from "./libs/types/common";
 
 @Module({
@@ -26,6 +27,7 @@ import { T } from "./libs/types/common";
       },
     }),
     ComponentsModule,
+    SocketModule,
     DatabaseModule,
   ],
   controllers: [AppController],

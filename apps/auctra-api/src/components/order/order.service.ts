@@ -104,7 +104,7 @@ export class OrderService {
 			notificationType = NotificationType.ORDER_COMPLETED;
 		}
 
-		return await this.connection.transaction(async (session) => {
+		const { result, notification } = await this.connection.transaction(async (session) => {
 			const result = await this.orderModel
 				.findOneAndUpdate(match, update, { new: true, session })
 				.exec();
@@ -117,7 +117,7 @@ export class OrderService {
 				);
 			}
 
-			await this.notificationService.createNotification(
+			const notification = await this.notificationService.createNotification(
 				{
 					memberId: orderStatus === OrderStatus.SHIPPED ? result.buyerId : result.sellerId,
 					notificationType: notificationType,
@@ -127,7 +127,10 @@ export class OrderService {
 				},
 				session,
 			);
-			return result;
+			return { result, notification };
 		});
+
+		this.notificationService.pushNotification(notification);
+		return result;
 	}
 }

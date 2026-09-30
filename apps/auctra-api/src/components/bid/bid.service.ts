@@ -7,8 +7,10 @@ import { Direction, Message } from '../../libs/enums/common.enum';
 import { lookupMember } from '../../libs/config';
 import { T } from '../../libs/types/common';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
+import { Notification } from '../../libs/dto/notification/notification';
 import { LotService } from '../lot/lot.service';
 import { NotificationService } from '../notification/notification.service';
+import { SocketGateway } from '../../socket/socket.gateway';
 
 @Injectable()
 export class BidService {
@@ -17,10 +19,11 @@ export class BidService {
 		@InjectConnection() private readonly connection: Connection,
 		private readonly lotService: LotService,
 		private readonly notificationService: NotificationService,
+		private readonly socketGateway: SocketGateway,
 	) {}
 
 	public async placeBid(memberId: Types.ObjectId, input: BidInput): Promise<Bid> {
-		return await this.connection.transaction(async (session) => {
+		const { result, previousLot, outbid } = await this.connection.transaction(async (session) => {
 			const previousLot = await this.lotService.placeBidOnLot(memberId, input.lotId, input.bidPrice, session);
 			if (!previousLot) throw new BadRequestException(Message.BID_NOT_ACCEPTED);
 			const bidPrice = Math.min(input.bidPrice, previousLot.lotCeilingPrice ?? input.bidPrice);
@@ -36,8 +39,9 @@ export class BidService {
 				throw new BadRequestException(Message.CREATE_FAILED);
 			}
 
+			let outbid: Notification | null = null;
 			if (previousLot.lotHighestBidderId) {
-				await this.notificationService.createNotification(
+				outbid = await this.notificationService.createNotification(
 					{
 						memberId: previousLot.lotHighestBidderId,
 						notificationType: NotificationType.OUTBID,
@@ -48,8 +52,19 @@ export class BidService {
 					session,
 				);
 			}
-			return result;
+			return { result, previousLot, outbid };
 		});
+
+		this.socketGateway.emitToRoom(`lot:${previousLot._id}`, {
+			event: 'bid',
+			lotId: previousLot._id,
+			bidPrice: result.bidPrice,
+			memberId: memberId,
+			lotBids: previousLot.lotBids + 1,
+			lotEndsAt: result.bidPrice === previousLot.lotCeilingPrice ? result.createdAt : previousLot.lotEndsAt,
+		});
+		if (outbid) this.notificationService.pushNotification(outbid);
+		return result;
 	}
 
 	public async getBids(memberId: Types.ObjectId | null, input: BidsInquiry): Promise<Bids> {

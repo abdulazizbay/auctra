@@ -8,6 +8,7 @@ import { T } from '../../libs/types/common';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { OrderService } from '../order/order.service';
 import { NotificationService } from '../notification/notification.service';
+import { SocketGateway } from '../../socket/socket.gateway';
 
 @Injectable()
 export class MessageService {
@@ -15,6 +16,7 @@ export class MessageService {
 		@InjectModel('Message') private readonly messageModel: Model<OrderMessage>,
 		private readonly orderService: OrderService,
 		private readonly notificationService: NotificationService,
+		private readonly socketGateway: SocketGateway,
 	) {}
 
 	public async sendMessage(memberId: Types.ObjectId, input: MessageInput): Promise<OrderMessage> {
@@ -31,6 +33,8 @@ export class MessageService {
 			console.log('Error, Service.model:', err);
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
+
+		this.socketGateway.emitToRoom(`order:${order._id}`, { event: 'orderMessage', message: result });
 
 		await this.notificationService.createNotification({
 			memberId: order.buyerId.toString() === memberId.toString() ? order.sellerId : order.buyerId,

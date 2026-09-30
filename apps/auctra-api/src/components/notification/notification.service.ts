@@ -5,19 +5,32 @@ import { Notification, Notifications } from '../../libs/dto/notification/notific
 import { NotificationInput, NotificationsInquiry } from '../../libs/dto/notification/notification.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { T } from '../../libs/types/common';
+import { SocketGateway } from '../../socket/socket.gateway';
 
 @Injectable()
 export class NotificationService {
-	constructor(@InjectModel('Notification') private readonly notificationModel: Model<Notification>) {}
+	constructor(
+		@InjectModel('Notification') private readonly notificationModel: Model<Notification>,
+		private readonly socketGateway: SocketGateway,
+	) {}
 
 	public async createNotification(input: NotificationInput, session?: ClientSession): Promise<Notification> {
+		let result: Notification;
 		try {
-			const [result] = await this.notificationModel.create([input], { session });
-			return result;
+			[result] = await this.notificationModel.create([input], { session });
 		} catch (err) {
 			console.log('Error, Service.model:', err);
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
+		if (!session) this.pushNotification(result);
+		return result;
+	}
+
+	public pushNotification(notification: Notification): void {
+		this.socketGateway.emitToRoom(`member:${notification.memberId}`, {
+			event: 'notification',
+			notification: notification,
+		});
 	}
 
 	public async getNotifications(memberId: Types.ObjectId, input: NotificationsInquiry): Promise<Notifications> {
