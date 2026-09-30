@@ -1,5 +1,6 @@
 import { Args, Mutation, Resolver, Query } from '@nestjs/graphql';
 import { AuthResponse, Member, Members } from '../../libs/dto/member/member';
+import { Follower } from '../../libs/dto/follow/follow';
 import {
 	LoginInput,
 	MemberInput,
@@ -92,6 +93,28 @@ export class MemberResolver {
 		console.log('Mutation: likeTargetMember');
 		const likeRefId = shapeIntoMongoObjectId(input);
 		return await this.memberService.likeTargetMember(memberId, likeRefId);
+	}
+
+	@UseGuards(AuthGuard)
+	@Mutation(() => Follower)
+	public async subscribe(
+		@Args('input') input: string,
+		@AuthMember('_id') memberId: Types.ObjectId,
+	): Promise<Follower> {
+		console.log('Mutation: subscribe');
+		const followingId = shapeIntoMongoObjectId(input);
+		return await this.memberService.subscribe(memberId, followingId);
+	}
+
+	@UseGuards(AuthGuard)
+	@Mutation(() => Follower)
+	public async unsubscribe(
+		@Args('input') input: string,
+		@AuthMember('_id') memberId: Types.ObjectId,
+	): Promise<Follower> {
+		console.log('Mutation: unsubscribe');
+		const followingId = shapeIntoMongoObjectId(input);
+		return await this.memberService.unsubscribe(memberId, followingId);
 	}
 
 	@UseGuards(AuthGuard)

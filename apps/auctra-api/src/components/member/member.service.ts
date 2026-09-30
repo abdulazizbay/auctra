@@ -20,7 +20,9 @@ import { ViewGroup } from '../../libs/enums/view.enum';
 import { LikeService } from '../like/like.service';
 import { LikeGroup } from '../../libs/enums/like.enum';
 import { LikeInput } from '../../libs/dto/like/like.input';
-import { lookAuthMemberLiked } from '../../libs/config';
+import { lookAuthMemberFollowed, lookAuthMemberLiked } from '../../libs/config';
+import { Follower } from '../../libs/dto/follow/follow';
+import { FollowService } from '../follow/follow.service';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import {
@@ -38,6 +40,7 @@ export class MemberService {
 		private readonly notificationService: NotificationService,
 		private readonly viewService: ViewService,
 		private readonly likeService: LikeService,
+		private readonly followService: FollowService,
 	) {}
 	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
@@ -124,8 +127,50 @@ export class MemberService {
 				likeRefId: targetId,
 				likeGroup: LikeGroup.MEMBER,
 			});
+			targetMember.meFollowed = await this.followService.checkSubscription(memberId, targetId);
 		}
 		return targetMember;
+	}
+
+	public async subscribe(followerId: Types.ObjectId, followingId: Types.ObjectId): Promise<Follower> {
+		if (followerId.toString() === followingId.toString())
+			throw new BadRequestException(Message.SELF_FOLLOW_DENIED);
+
+		await this.getMember(null, followingId);
+
+		const result = await this.followService.registerSubscription(followerId, followingId);
+
+		await this.memberStatsEditor({
+			_id: followerId,
+			targetKey: 'memberFollowings',
+			modifier: 1,
+		});
+		await this.memberStatsEditor({
+			_id: followingId,
+			targetKey: 'memberFollowers',
+			modifier: 1,
+		});
+
+		return result;
+	}
+
+	public async unsubscribe(followerId: Types.ObjectId, followingId: Types.ObjectId): Promise<Follower> {
+		await this.getMember(null, followingId);
+
+		const result = await this.followService.removeSubscription(followerId, followingId);
+
+		await this.memberStatsEditor({
+			_id: followerId,
+			targetKey: 'memberFollowings',
+			modifier: -1,
+		});
+		await this.memberStatsEditor({
+			_id: followingId,
+			targetKey: 'memberFollowers',
+			modifier: -1,
+		});
+
+		return result;
 	}
 
 	public async likeTargetMember(memberId: Types.ObjectId, likeRefId: Types.ObjectId): Promise<Member> {
@@ -176,7 +221,7 @@ export class MemberService {
 							{ $skip: (input.page - 1) * input.limit },
 							{ $limit: input.limit },
 							lookAuthMemberLiked(memberId),
-							//check meFollowed
+							lookAuthMemberFollowed({ followerId: memberId, followingId: '$_id' }),
 						],
 						metaCounter: [{ $count: 'total' }],
 					},

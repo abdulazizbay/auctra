@@ -1,6 +1,7 @@
 import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 import { Types } from 'mongoose';
 import { MeLiked } from '../like/like';
+import { MeFollowed } from '../follow/follow';
 import {
 	MemberLocation,
 	MemberSellerStatus,
@@ -85,6 +86,9 @@ export class Member {
 
 	@Field(() => [MeLiked], { nullable: true })
 	meLiked?: MeLiked[];
+
+	@Field(() => [MeFollowed], { nullable: true })
+	meFollowed?: MeFollowed[];
 }
 
 @ObjectType()
