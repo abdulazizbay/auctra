@@ -10,11 +10,12 @@ import { LotInput, LotsInquiry, OrdinaryInquiry } from '../../libs/dto/lot/lot.i
 import { LotUpdate } from '../../libs/dto/lot/lot.update';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { LotStatus, publicLotStatuses } from '../../libs/enums/lot.enum';
-import { lookAuthMemberWatched, shapeIntoMongoObjectId } from '../../libs/config';
+import { lookAuthMemberWatched, lookupMember, shapeIntoMongoObjectId } from '../../libs/config';
 import { StatisticModifier, T } from '../../libs/types/common';
 import { WatchService } from '../watch/watch.service';
 import { ViewService } from '../view/view.service';
 import { ViewGroup } from '../../libs/enums/view.enum';
+import { MemberService } from '../member/member.service';
 
 @Injectable()
 export class LotService {
@@ -22,6 +23,7 @@ export class LotService {
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
 		private readonly watchService: WatchService,
 		private readonly viewService: ViewService,
+		private readonly memberService: MemberService,
 	) {}
 
 	public async createLot(
@@ -78,6 +80,7 @@ export class LotService {
 			}
 		}
 		if (memberId) targetLot.meWatched = await this.watchService.checkWatchExistence(memberId, lotId);
+		targetLot.memberData = await this.memberService.getMember(null, targetLot.memberId);
 		return targetLot;
 	}
 
@@ -120,6 +123,8 @@ export class LotService {
 							{ $skip: (input.page - 1) * input.limit },
 							{ $limit: input.limit },
 							lookAuthMemberWatched(memberId),
+							lookupMember,
+							{ $unwind: '$memberData' },
 						],
 						metaCounter: [{ $count: 'total' }],
 					},
