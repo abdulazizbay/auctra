@@ -6,7 +6,7 @@ import { OrdersInquiry } from '../../libs/dto/order/order.input';
 import { OrderUpdate } from '../../libs/dto/order/order.update';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { OrderStatus } from '../../libs/enums/order.enum';
-import { lookupOrderItems, lookupOrderLots } from '../../libs/config';
+import { lookupOrderItems, lookupOrderLots, lookupOrderReviewed } from '../../libs/config';
 import { T } from '../../libs/types/common';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberService } from '../member/member.service';
@@ -36,6 +36,7 @@ export class OrderService {
 							{ $limit: input.limit },
 							lookupOrderItems,
 							lookupOrderLots,
+							...lookupOrderReviewed,
 						],
 						metaCounter: [{ $count: 'total' }],
 					},

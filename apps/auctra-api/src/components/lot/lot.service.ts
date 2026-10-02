@@ -90,13 +90,15 @@ export class LotService {
 	): Promise<Lots> {
 		const {
 			memberId: sellerId,
-			lotStatus,
+			lotStatusList,
 			lotCategoryList,
 			lotConditionList,
 			pricesRange,
 			text,
 		} = input.search;
-		const match: T = { lotStatus: lotStatus ?? LotStatus.OPEN };
+		const match: T = {
+			lotStatus: lotStatusList?.length ? { $in: lotStatusList } : LotStatus.OPEN,
+		};
 		if (sellerId) match.memberId = shapeIntoMongoObjectId(sellerId);
 		if (lotCategoryList?.length) match.lotCategory = { $in: lotCategoryList };
 		if (lotConditionList?.length)

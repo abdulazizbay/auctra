@@ -61,6 +61,9 @@ export class Order {
 
 	@Field(() => [Lot], { nullable: true })
 	lotData?: Lot[];
+
+	@Field(() => Boolean, { nullable: true })
+	orderReviewed?: boolean;
 }
 
 @ObjectType()

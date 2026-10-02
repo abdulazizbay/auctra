@@ -71,6 +71,19 @@ export const lookupOrderLots = {
 	},
 };
 
+export const lookupOrderReviewed = [
+	{
+		$lookup: {
+			from: 'reviews',
+			localField: '_id',
+			foreignField: 'orderId',
+			as: 'orderReviews',
+		},
+	},
+	{ $addFields: { orderReviewed: { $gt: [{ $size: '$orderReviews' }, 0] } } },
+	{ $project: { orderReviews: 0 } },
+];
+
 export const lookupBuyerData = {
 	$lookup: {
 		from: 'members',
