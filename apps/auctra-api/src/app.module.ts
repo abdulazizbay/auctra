@@ -15,7 +15,8 @@ import { T } from "./libs/types/common";
     ConfigModule.forRoot(),
     GraphQLModule.forRoot({
       driver: ApolloDriver,
-      playground: true,
+      playground: process.env.NODE_ENV !== "production",
+      introspection: process.env.NODE_ENV !== "production",
       uploads: false,
       autoSchemaFile: true,
       formatError: (error: T) => {
