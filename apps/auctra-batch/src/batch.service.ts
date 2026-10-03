@@ -6,7 +6,11 @@ import { LotStatus } from 'apps/auctra-api/src/libs/enums/lot.enum';
 import { OrderStatus } from 'apps/auctra-api/src/libs/enums/order.enum';
 import { Order, OrderItem } from 'apps/auctra-api/src/libs/dto/order/order';
 import { Notification } from 'apps/auctra-api/src/libs/dto/notification/notification';
-import { NotificationRefType, NotificationType } from 'apps/auctra-api/src/libs/enums/notification.enum';
+import { Bid } from 'apps/auctra-api/src/libs/dto/bid/bid';
+import {
+	NotificationRefType,
+	NotificationType,
+} from 'apps/auctra-api/src/libs/enums/notification.enum';
 import { T } from 'apps/auctra-api/src/libs/types/common';
 import { ORDER_PAYMENT_WINDOW } from './lib/config';
 
@@ -16,7 +20,9 @@ export class BatchService {
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
 		@InjectModel('Order') private readonly orderModel: Model<Order>,
 		@InjectModel('OrderItem') private readonly orderItemModel: Model<OrderItem>,
-		@InjectModel('Notification') private readonly notificationModel: Model<Notification>,
+		@InjectModel('Notification')
+		private readonly notificationModel: Model<Notification>,
+		@InjectModel('Bid') private readonly bidModel: Model<Bid>,
 		@InjectConnection() private readonly connection: Connection,
 	) {}
 
@@ -61,7 +67,8 @@ export class BatchService {
 						)
 						.exec();
 					if (!lot) return null;
-					if (lot.lotStatus !== LotStatus.SOLD) return { lot, notification: null };
+					if (lot.lotStatus !== LotStatus.SOLD)
+						return { lot, notification: null };
 
 					const order = await this.orderModel
 						.findOneAndUpdate(
@@ -100,7 +107,10 @@ export class BatchService {
 								notificationType: NotificationType.WON,
 								notificationRefId: lot._id,
 								notificationRefType: NotificationRefType.LOT,
-								notificationPayload: { lotName: lot.lotName, price: lot.lotCurrentPrice },
+								notificationPayload: {
+									lotName: lot.lotName,
+									price: lot.lotCurrentPrice,
+								},
 							},
 						],
 						{ session },
@@ -118,10 +128,34 @@ export class BatchService {
 					lotHighestBidderId: lot.lotHighestBidderId,
 					lotClosedAt: lot.lotClosedAt,
 				});
-				if (notification)
-					await this.emitToRoom(`member:${notification.memberId}`, {
+				if (!notification) continue;
+				await this.emitToRoom(`member:${notification.memberId}`, {
+					event: 'notification',
+					notification: notification,
+				});
+
+				const loserIds = await this.bidModel
+					.distinct('memberId', {
+						lotId: lot._id,
+						memberId: { $ne: lot.lotHighestBidderId },
+					})
+					.exec();
+				const losts = await this.notificationModel.insertMany(
+					loserIds.map((memberId) => ({
+						memberId: memberId,
+						notificationType: NotificationType.LOST,
+						notificationRefId: lot._id,
+						notificationRefType: NotificationRefType.LOT,
+						notificationPayload: {
+							lotName: lot.lotName,
+							price: lot.lotCurrentPrice,
+						},
+					})),
+				);
+				for (const lost of losts)
+					await this.emitToRoom(`member:${lost.memberId}`, {
 						event: 'notification',
-						notification: notification,
+						notification: lost,
 					});
 			} catch (err) {
 				console.log('Error, batchCloseLots:', _id, err);
@@ -148,7 +182,10 @@ export class BatchService {
 	public async batchExpireOrders(): Promise<void> {
 		await this.orderModel
 			.updateMany(
-				{ orderStatus: OrderStatus.PENDING_PAYMENT, orderPaymentDueAt: { $lte: new Date() } },
+				{
+					orderStatus: OrderStatus.PENDING_PAYMENT,
+					orderPaymentDueAt: { $lte: new Date() },
+				},
 				{ orderStatus: OrderStatus.EXPIRED },
 			)
 			.exec();

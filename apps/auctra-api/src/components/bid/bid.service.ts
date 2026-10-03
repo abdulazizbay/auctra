@@ -8,6 +8,7 @@ import { lookupMember } from '../../libs/config';
 import { T } from '../../libs/types/common';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { Notification } from '../../libs/dto/notification/notification';
+import { Member } from '../../libs/dto/member/member';
 import { LotService } from '../lot/lot.service';
 import { NotificationService } from '../notification/notification.service';
 import { SocketGateway } from '../../socket/socket.gateway';
@@ -22,7 +23,8 @@ export class BidService {
 		private readonly socketGateway: SocketGateway,
 	) {}
 
-	public async placeBid(memberId: Types.ObjectId, input: BidInput): Promise<Bid> {
+	public async placeBid(authMember: Member, input: BidInput): Promise<Bid> {
+		const memberId = authMember._id;
 		const { result, previousLot, outbid } = await this.connection.transaction(async (session) => {
 			const previousLot = await this.lotService.placeBidOnLot(memberId, input.lotId, input.bidPrice, session);
 			if (!previousLot) throw new BadRequestException(Message.BID_NOT_ACCEPTED);
@@ -62,6 +64,14 @@ export class BidService {
 			memberId: memberId,
 			lotBids: previousLot.lotBids + 1,
 			lotEndsAt: result.bidPrice === previousLot.lotCeilingPrice ? result.createdAt : previousLot.lotEndsAt,
+			bid: {
+				_id: result._id,
+				lotId: result.lotId,
+				memberId: memberId,
+				bidPrice: result.bidPrice,
+				createdAt: result.createdAt,
+				memberData: { _id: memberId, memberNick: authMember.memberNick, memberImage: authMember.memberImage },
+			},
 		});
 		if (outbid) this.notificationService.pushNotification(outbid);
 		return result;

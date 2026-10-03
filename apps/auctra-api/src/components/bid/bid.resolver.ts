@@ -5,6 +5,7 @@ import { Bid, Bids } from '../../libs/dto/bid/bid';
 import { BidInput, BidsInquiry } from '../../libs/dto/bid/bid.input';
 import { shapeIntoMongoObjectId } from '../../libs/config';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
+import { Member } from '../../libs/dto/member/member';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { WithoutGuard } from '../auth/guards/without.guard';
 import { BidService } from './bid.service';
@@ -17,11 +18,11 @@ export class BidResolver {
 	@Mutation(() => Bid)
 	public async placeBid(
 		@Args('input') input: BidInput,
-		@AuthMember('_id') memberId: Types.ObjectId,
+		@AuthMember() authMember: Member,
 	): Promise<Bid> {
 		console.log('Mutation: placeBid');
 		input.lotId = shapeIntoMongoObjectId(input.lotId);
-		return await this.bidService.placeBid(memberId, input);
+		return await this.bidService.placeBid(authMember, input);
 	}
 
 	@UseGuards(WithoutGuard)

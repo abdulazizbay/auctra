@@ -16,14 +16,21 @@ import { WatchService } from '../watch/watch.service';
 import { ViewService } from '../view/view.service';
 import { ViewGroup } from '../../libs/enums/view.enum';
 import { MemberService } from '../member/member.service';
+import { NotificationService } from '../notification/notification.service';
+import { SocketGateway } from '../../socket/socket.gateway';
+import { Bid } from '../../libs/dto/bid/bid';
+import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 
 @Injectable()
 export class LotService {
 	constructor(
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
+		@InjectModel('Bid') private readonly bidModel: Model<Bid>,
 		private readonly watchService: WatchService,
 		private readonly viewService: ViewService,
 		private readonly memberService: MemberService,
+		private readonly notificationService: NotificationService,
+		private readonly socketGateway: SocketGateway,
 	) {}
 
 	public async createLot(
@@ -184,6 +191,33 @@ export class LotService {
 			.findOneAndUpdate(filter, update, { new: true, runValidators: true })
 			.exec();
 		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
+
+		if (result.lotStatus === LotStatus.CANCELLED) {
+			const [bidderIds, watcherIds] = await Promise.all([
+				this.bidModel.distinct('memberId', { lotId: result._id }).exec(),
+				this.watchService.getWatcherIds(result._id),
+			]);
+			const memberIds = new Set([result.memberId, ...bidderIds, ...watcherIds].map(String));
+			await Promise.all(
+				[...memberIds].map((memberId) =>
+					this.notificationService.createNotification({
+						memberId: shapeIntoMongoObjectId(memberId),
+						notificationType: NotificationType.LOT_CANCELLED,
+						notificationRefId: result._id,
+						notificationRefType: NotificationRefType.LOT,
+						notificationPayload: { lotName: result.lotName },
+					}),
+				),
+			);
+			this.socketGateway.emitToRoom(`lot:${result._id}`, {
+				event: 'lotClosed',
+				lotId: result._id,
+				lotStatus: result.lotStatus,
+				lotCurrentPrice: result.lotCurrentPrice,
+				lotHighestBidderId: result.lotHighestBidderId,
+				lotClosedAt: result.lotClosedAt,
+			});
+		}
 		return result;
 	}
 

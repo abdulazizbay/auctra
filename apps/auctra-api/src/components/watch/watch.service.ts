@@ -29,6 +29,10 @@ export class WatchService {
 		return modifier;
 	}
 
+	public async getWatcherIds(lotId: Types.ObjectId): Promise<Types.ObjectId[]> {
+		return await this.watchModel.distinct('memberId', { lotId: lotId }).exec();
+	}
+
 	public async checkWatchExistence(memberId: Types.ObjectId, lotId: Types.ObjectId): Promise<MeWatched[]> {
 		const result = await this.watchModel.findOne({ memberId: memberId, lotId: lotId }).exec();
 		return result ? [{ memberId: memberId, lotId: lotId, myWatch: true }] : [];

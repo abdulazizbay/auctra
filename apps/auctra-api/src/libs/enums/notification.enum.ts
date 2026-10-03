@@ -14,6 +14,7 @@ export enum NotificationType {
 	NEW_LOT_FROM_FOLLOWED = 'NEW_LOT_FROM_FOLLOWED',
 	SELLER_APPROVED = 'SELLER_APPROVED',
 	SELLER_REJECTED = 'SELLER_REJECTED',
+	LOT_CANCELLED = 'LOT_CANCELLED',
 }
 registerEnumType(NotificationType, { name: 'NotificationType' });
 
