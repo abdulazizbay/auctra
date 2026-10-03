@@ -116,6 +116,7 @@ export class LotService {
 	): Promise<Lots> {
 		const {
 			memberId: sellerId,
+			myBids,
 			lotStatusList,
 			lotCategoryList,
 			lotConditionList,
@@ -126,6 +127,10 @@ export class LotService {
 			lotStatus: lotStatusList?.length ? { $in: lotStatusList } : LotStatus.OPEN,
 		};
 		if (sellerId) match.memberId = shapeIntoMongoObjectId(sellerId);
+		if (myBids)
+			match._id = {
+				$in: await this.bidModel.distinct('lotId', { memberId: memberId }).exec(),
+			};
 		if (lotCategoryList?.length) match.lotCategory = { $in: lotCategoryList };
 		if (lotConditionList?.length)
 			match.lotCondition = { $in: lotConditionList };

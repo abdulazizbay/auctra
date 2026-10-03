@@ -89,6 +89,10 @@ class LISearch {
 	memberId?: string;
 
 	@IsOptional()
+	@Field(() => Boolean, { nullable: true })
+	myBids?: boolean;
+
+	@IsOptional()
 	@IsIn(publicLotStatuses, { each: true })
 	@Field(() => [LotStatus], { nullable: true })
 	lotStatusList?: LotStatus[];
