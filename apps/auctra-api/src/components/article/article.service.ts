@@ -26,6 +26,12 @@ import {
 import { MemberService } from '../member/member.service';
 import { ViewService } from '../view/view.service';
 import { LikeService } from '../like/like.service';
+import { FollowService } from '../follow/follow.service';
+import { NotificationService } from '../notification/notification.service';
+import {
+	NotificationRefType,
+	NotificationType,
+} from '../../libs/enums/notification.enum';
 
 @Injectable()
 export class ArticleService {
@@ -34,17 +40,34 @@ export class ArticleService {
 		private readonly memberService: MemberService,
 		private readonly viewService: ViewService,
 		private readonly likeService: LikeService,
+		private readonly followService: FollowService,
+		private readonly notificationService: NotificationService,
 	) {}
 	public async createArticle(
 		memberId: Types.ObjectId,
 		input: ArticleInput,
 	): Promise<Article> {
+		let result: Article;
 		try {
-			return await this.articleModel.create({ ...input, memberId: memberId });
+			result = await this.articleModel.create({ ...input, memberId: memberId });
 		} catch (err) {
 			console.log('Error, Service.model:', err);
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
+
+		const followerIds = await this.followService.getFollowerIds(memberId);
+		await Promise.all(
+			followerIds.map((followerId) =>
+				this.notificationService.createNotification({
+					memberId: followerId,
+					notificationType: NotificationType.NEW_ARTICLE_FROM_FOLLOWED,
+					notificationRefId: result._id,
+					notificationRefType: NotificationRefType.ARTICLE,
+					notificationPayload: { text: result.articleTitle },
+				}),
+			),
+		);
+		return result;
 	}
 
 	public async getArticle(

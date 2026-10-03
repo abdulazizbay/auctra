@@ -13,6 +13,7 @@ import { LotStatus, publicLotStatuses } from '../../libs/enums/lot.enum';
 import { lookAuthMemberWatched, lookupMember, shapeIntoMongoObjectId } from '../../libs/config';
 import { StatisticModifier, T } from '../../libs/types/common';
 import { WatchService } from '../watch/watch.service';
+import { FollowService } from '../follow/follow.service';
 import { ViewService } from '../view/view.service';
 import { ViewGroup } from '../../libs/enums/view.enum';
 import { MemberService } from '../member/member.service';
@@ -27,6 +28,7 @@ export class LotService {
 		@InjectModel('Lot') private readonly lotModel: Model<Lot>,
 		@InjectModel('Bid') private readonly bidModel: Model<Bid>,
 		private readonly watchService: WatchService,
+		private readonly followService: FollowService,
 		private readonly viewService: ViewService,
 		private readonly memberService: MemberService,
 		private readonly notificationService: NotificationService,
@@ -51,8 +53,9 @@ export class LotService {
 		)
 			throw new BadRequestException(Message.INVALID_CEILING_PRICE);
 
+		let result: Lot;
 		try {
-			return await this.lotModel.create({
+			result = await this.lotModel.create({
 				...input,
 				memberId,
 				lotStartsAt,
@@ -63,6 +66,22 @@ export class LotService {
 			console.log('Error, lot service: ', err);
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
+
+		if (result.lotStatus === LotStatus.OPEN) {
+			const followerIds = await this.followService.getFollowerIds(memberId);
+			await Promise.all(
+				followerIds.map((followerId) =>
+					this.notificationService.createNotification({
+						memberId: followerId,
+						notificationType: NotificationType.NEW_LOT_FROM_FOLLOWED,
+						notificationRefId: result._id,
+						notificationRefType: NotificationRefType.LOT,
+						notificationPayload: { lotName: result.lotName },
+					}),
+				),
+			);
+		}
+		return result;
 	}
 
 	public async getLot(

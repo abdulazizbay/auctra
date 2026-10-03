@@ -5,6 +5,8 @@ import { AuthModule } from '../auth/auth.module';
 import { MemberModule } from '../member/member.module';
 import { ViewModule } from '../view/view.module';
 import { LikeModule } from '../like/like.module';
+import { FollowModule } from '../follow/follow.module';
+import { NotificationModule } from '../notification/notification.module';
 import { ArticleResolver } from './article.resolver';
 import { ArticleService } from './article.service';
 
@@ -15,6 +17,8 @@ import { ArticleService } from './article.service';
 		MemberModule,
 		ViewModule,
 		LikeModule,
+		FollowModule,
+		NotificationModule,
 	],
 	providers: [ArticleResolver, ArticleService],
 	exports: [ArticleService],

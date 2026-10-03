@@ -43,6 +43,10 @@ export class FollowService {
 		return result ? [{ followerId: followerId, followingId: followingId, myFollowing: true }] : [];
 	}
 
+	public async getFollowerIds(memberId: Types.ObjectId): Promise<Types.ObjectId[]> {
+		return await this.followModel.distinct('followerId', { followingId: memberId }).exec();
+	}
+
 	public async getMemberFollowings(memberId: Types.ObjectId | null, input: FollowInquiry): Promise<Followings> {
 		const { page, limit, search } = input;
 		if (!search?.followerId) throw new BadRequestException(Message.BAD_REQUEST);

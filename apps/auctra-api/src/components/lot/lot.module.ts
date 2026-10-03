@@ -8,6 +8,7 @@ import { AuthModule } from '../auth/auth.module';
 import { MemberModule } from '../member/member.module';
 import { ViewModule } from '../view/view.module';
 import { WatchModule } from '../watch/watch.module';
+import { FollowModule } from '../follow/follow.module';
 import { LotResolver } from './lot.resolver';
 import { LotService } from './lot.service';
 
@@ -21,6 +22,7 @@ import { LotService } from './lot.service';
 		MemberModule,
 		ViewModule,
 		WatchModule,
+		FollowModule,
 		NotificationModule,
 		SocketModule,
 	],

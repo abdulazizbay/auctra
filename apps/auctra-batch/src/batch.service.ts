@@ -7,6 +7,7 @@ import { OrderStatus } from 'apps/auctra-api/src/libs/enums/order.enum';
 import { Order, OrderItem } from 'apps/auctra-api/src/libs/dto/order/order';
 import { Notification } from 'apps/auctra-api/src/libs/dto/notification/notification';
 import { Bid } from 'apps/auctra-api/src/libs/dto/bid/bid';
+import { Follower } from 'apps/auctra-api/src/libs/dto/follow/follow';
 import {
 	NotificationRefType,
 	NotificationType,
@@ -23,16 +24,52 @@ export class BatchService {
 		@InjectModel('Notification')
 		private readonly notificationModel: Model<Notification>,
 		@InjectModel('Bid') private readonly bidModel: Model<Bid>,
+		@InjectModel('Follow') private readonly followModel: Model<Follower>,
 		@InjectConnection() private readonly connection: Connection,
 	) {}
 
 	public async batchOpenLots(): Promise<void> {
-		await this.lotModel
-			.updateMany(
-				{ lotStatus: LotStatus.SCHEDULED, lotStartsAt: { $lte: new Date() } },
-				{ lotStatus: LotStatus.OPEN },
-			)
+		const lots = await this.lotModel
+			.find({
+				lotStatus: LotStatus.SCHEDULED,
+				lotStartsAt: { $lte: new Date() },
+			})
+			.select('_id')
+			.lean()
 			.exec();
+
+		for (const { _id } of lots) {
+			try {
+				const lot = await this.lotModel
+					.findOneAndUpdate(
+						{ _id, lotStatus: LotStatus.SCHEDULED },
+						{ lotStatus: LotStatus.OPEN },
+						{ new: true },
+					)
+					.exec();
+				if (!lot) continue;
+
+				const followerIds = await this.followModel
+					.distinct('followerId', { followingId: lot.memberId })
+					.exec();
+				const notifications = await this.notificationModel.insertMany(
+					followerIds.map((memberId) => ({
+						memberId: memberId,
+						notificationType: NotificationType.NEW_LOT_FROM_FOLLOWED,
+						notificationRefId: lot._id,
+						notificationRefType: NotificationRefType.LOT,
+						notificationPayload: { lotName: lot.lotName },
+					})),
+				);
+				for (const notification of notifications)
+					await this.emitToRoom(`member:${notification.memberId}`, {
+						event: 'notification',
+						notification: notification,
+					});
+			} catch (err) {
+				console.log('Error, batchOpenLots:', _id, err);
+			}
+		}
 	}
 
 	public async batchCloseLots(): Promise<void> {

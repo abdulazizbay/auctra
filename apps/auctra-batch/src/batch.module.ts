@@ -10,6 +10,7 @@ import OrderSchema from 'apps/auctra-api/src/schemas/Order.model';
 import OrderItemSchema from 'apps/auctra-api/src/schemas/OrderItem.model';
 import NotificationSchema from 'apps/auctra-api/src/schemas/Notification.model';
 import BidSchema from 'apps/auctra-api/src/schemas/Bid.model';
+import FollowSchema from 'apps/auctra-api/src/schemas/Follow.model';
 
 @Module({
 	imports: [
@@ -21,6 +22,7 @@ import BidSchema from 'apps/auctra-api/src/schemas/Bid.model';
 		MongooseModule.forFeature([{ name: 'OrderItem', schema: OrderItemSchema }]),
 		MongooseModule.forFeature([{ name: 'Notification', schema: NotificationSchema }]),
 		MongooseModule.forFeature([{ name: 'Bid', schema: BidSchema }]),
+		MongooseModule.forFeature([{ name: 'Follow', schema: FollowSchema }]),
 	],
 	controllers: [BatchController],
 	providers: [BatchService],
