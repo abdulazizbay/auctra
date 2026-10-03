@@ -7,6 +7,7 @@ import { OrderStatus } from 'apps/auctra-api/src/libs/enums/order.enum';
 import { Order, OrderItem } from 'apps/auctra-api/src/libs/dto/order/order';
 import { Notification } from 'apps/auctra-api/src/libs/dto/notification/notification';
 import { NotificationRefType, NotificationType } from 'apps/auctra-api/src/libs/enums/notification.enum';
+import { T } from 'apps/auctra-api/src/libs/types/common';
 import { ORDER_PAYMENT_WINDOW } from './lib/config';
 
 @Injectable()
@@ -37,7 +38,7 @@ export class BatchService {
 
 		for (const { _id } of lots) {
 			try {
-				await this.connection.transaction(async (session) => {
+				const closed = await this.connection.transaction(async (session) => {
 					const now = new Date();
 					const lot = await this.lotModel
 						.findOneAndUpdate(
@@ -59,7 +60,8 @@ export class BatchService {
 							{ new: true, session },
 						)
 						.exec();
-					if (!lot || lot.lotStatus !== LotStatus.SOLD) return;
+					if (!lot) return null;
+					if (lot.lotStatus !== LotStatus.SOLD) return { lot, notification: null };
 
 					const order = await this.orderModel
 						.findOneAndUpdate(
@@ -91,7 +93,7 @@ export class BatchService {
 						{ session },
 					);
 
-					await this.notificationModel.create(
+					const [notification] = await this.notificationModel.create(
 						[
 							{
 								memberId: lot.lotHighestBidderId,
@@ -103,10 +105,43 @@ export class BatchService {
 						],
 						{ session },
 					);
+					return { lot, notification };
 				});
+				if (!closed) continue;
+
+				const { lot, notification } = closed;
+				await this.emitToRoom(`lot:${lot._id}`, {
+					event: 'lotClosed',
+					lotId: lot._id,
+					lotStatus: lot.lotStatus,
+					lotCurrentPrice: lot.lotCurrentPrice,
+					lotHighestBidderId: lot.lotHighestBidderId,
+					lotClosedAt: lot.lotClosedAt,
+				});
+				if (notification)
+					await this.emitToRoom(`member:${notification.memberId}`, {
+						event: 'notification',
+						notification: notification,
+					});
 			} catch (err) {
 				console.log('Error, batchCloseLots:', _id, err);
 			}
+		}
+	}
+
+	// send to api
+	private async emitToRoom(room: string, message: T): Promise<void> {
+		try {
+			await fetch(`http://localhost:${process.env.PORT_API}/socket/emit`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-batch-secret': process.env.SECRET_TOKEN as string,
+				},
+				body: JSON.stringify({ room, message }),
+			});
+		} catch (err) {
+			console.log('Error, emitToRoom:', room, err);
 		}
 	}
 

@@ -19,7 +19,7 @@ export class BatchController {
 		}
 	}
 
-	@Cron('10 * * * * *', { name: BATCH_CLOSE_LOTS })
+	@Cron('*/10 * * * * *', { name: BATCH_CLOSE_LOTS })
 	public async batchCloseLots() {
 		try {
 			this.logger['context'] = BATCH_CLOSE_LOTS;
