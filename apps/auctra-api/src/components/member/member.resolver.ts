@@ -63,6 +63,7 @@ export class MemberResolver {
 	) {
 		console.log('Mutation: updateMember');
 		delete input._id;
+		delete input.memberStatus;
 		return await this.memberService.updateMember(memberId, input);
 	}
 

@@ -43,8 +43,12 @@ export class MemberUpdate {
 	@IsOptional()
 	@Field(() => String, { nullable: true })
 	memberAddress?: string;
-}
 
+	@IsOptional()
+	@IsIn([MemberStatus.ACTIVE, MemberStatus.BLOCK])
+	@Field(() => MemberStatus, { nullable: true })
+	memberStatus?: MemberStatus;
+}
 
 @InputType()
 export class SellerApply {
