@@ -26,21 +26,29 @@ import { getSerialForImage, shapeIntoMongoObjectId, validMimeTypes } from '../..
 import { GraphQLUpload, FileUpload } from 'graphql-upload';
 import { createWriteStream } from 'fs';
 import { Message } from '../../libs/enums/common.enum';
+import { Throttle, hours, minutes } from '@nestjs/throttler';
+import { GqlThrottlerGuard } from '../auth/guards/gql-throttler.guard';
 
 @Resolver()
 export class MemberResolver {
 	constructor(private readonly memberService: MemberService) {}
+	@UseGuards(GqlThrottlerGuard)
+	@Throttle({ default: { limit: 3, ttl: minutes(10) } })
 	@Mutation(() => AuthResponse)
 	public async signup(@Args('input') input: MemberInput): Promise<AuthResponse> {
 		console.log('Mutation: signup');
 		return await this.memberService.signup(input);
 	}
+	@UseGuards(GqlThrottlerGuard)
+	@Throttle({ default: { limit: 5, ttl: minutes(1) } })
 	@Mutation(() => AuthResponse)
 	public async login(@Args('input') input: LoginInput): Promise<AuthResponse> {
 		console.log('Mutation: login');
 		return await this.memberService.login(input);
 	}
 
+	@UseGuards(GqlThrottlerGuard)
+	@Throttle({ default: { limit: 10, ttl: minutes(1) } })
 	@Mutation(() => AuthResponse)
 	public async socialLogin(@Args('input') input: SocialLoginInput): Promise<AuthResponse> {
 		console.log('Mutation: socialLogin');
@@ -95,7 +103,8 @@ export class MemberResolver {
 		return await this.memberService.getSellers(memberId, input);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 30, ttl: minutes(1) } })
 	@Mutation(() => Member)
 	public async likeTargetMember(
 		@Args('memberId') input: string,
@@ -106,7 +115,8 @@ export class MemberResolver {
 		return await this.memberService.likeTargetMember(memberId, likeRefId);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 30, ttl: minutes(1) } })
 	@Mutation(() => Follower)
 	public async subscribe(
 		@Args('input') input: string,
@@ -117,7 +127,8 @@ export class MemberResolver {
 		return await this.memberService.subscribe(memberId, followingId);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 30, ttl: minutes(1) } })
 	@Mutation(() => Follower)
 	public async unsubscribe(
 		@Args('input') input: string,
@@ -128,7 +139,8 @@ export class MemberResolver {
 		return await this.memberService.unsubscribe(memberId, followingId);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 3, ttl: hours(1) } })
 	@Mutation(() => Member)
 	public async applySeller(
 		@AuthMember('_id') memberId: Types.ObjectId,
@@ -138,7 +150,8 @@ export class MemberResolver {
 		return await this.memberService.applySeller(memberId, input);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 20, ttl: minutes(1) } })
 	@Mutation(() => String)
 	public async imageUploader(
 		@Args({ name: 'file', type: () => GraphQLUpload })
@@ -166,7 +179,8 @@ export class MemberResolver {
 		return url;
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 20, ttl: minutes(1) } })
 	@Mutation(() => [String])
 	public async imagesUploader(
 		@Args('files', { type: () => [GraphQLUpload] })

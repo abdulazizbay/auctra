@@ -22,6 +22,7 @@ export enum Message {
 	PROVIDE_ALLOWED_FORMAT = 'Please provide jpg, jpeg or png images!',
 	SELF_FOLLOW_DENIED = 'Self follow is denied!',
 	SELF_LIKE_DENIED = 'Self like is denied!',
+	TOO_MANY_REQUESTS = 'Too many requests, please try again later!',
 
 	INVALID_LOT_TIME = 'Lot must start now or later and end after it starts!',
 	INVALID_CEILING_PRICE = 'Ceiling price must be higher than start price!',

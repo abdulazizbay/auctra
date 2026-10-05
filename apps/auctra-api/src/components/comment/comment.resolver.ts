@@ -12,12 +12,15 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { WithoutGuard } from '../auth/guards/without.guard';
 import { CommentService } from './comment.service';
+import { Throttle, minutes } from '@nestjs/throttler';
+import { GqlThrottlerGuard } from '../auth/guards/gql-throttler.guard';
 
 @Resolver()
 export class CommentResolver {
 	constructor(private readonly commentService: CommentService) {}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 5, ttl: minutes(1) } })
 	@Mutation(() => Comment)
 	public async createComment(
 		@Args('input') input: CommentInput,
