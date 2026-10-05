@@ -14,6 +14,7 @@ import { SocketModule } from "./socket/socket.module";
 import { T } from "./libs/types/common";
 import { redisConnection } from "./libs/config";
 import { Message } from "./libs/enums/common.enum";
+import { CacheModule } from "./libs/cache/cache.module";
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { Message } from "./libs/enums/common.enum";
         return graphQLFormattedError;
       },
     }),
+    CacheModule,
     ComponentsModule,
     SocketModule,
     DatabaseModule,

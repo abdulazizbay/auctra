@@ -8,6 +8,7 @@ import { Direction, Message } from '../../libs/enums/common.enum';
 import { OrderStatus } from '../../libs/enums/order.enum';
 import { lookupOrderItems, lookupOrderLots, lookupOrderReviewed } from '../../libs/config';
 import { T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { MemberService } from '../member/member.service';
 import { NotificationService } from '../notification/notification.service';
@@ -19,6 +20,7 @@ export class OrderService {
 		@InjectConnection() private readonly connection: Connection,
 		private readonly memberService: MemberService,
 		private readonly notificationService: NotificationService,
+		private readonly cacheService: CacheService,
 	) {}
 
 	public async getMyOrders(memberId: Types.ObjectId, input: OrdersInquiry): Promise<Orders> {
@@ -132,6 +134,7 @@ export class OrderService {
 		});
 
 		this.notificationService.pushNotification(notification);
+		if (orderStatus === OrderStatus.COMPLETED) await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 }

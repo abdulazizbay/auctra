@@ -32,6 +32,7 @@ import {
 	SellerStatusUpdate,
 } from '../../libs/dto/member/member.update';
 import { StatisticModifier, T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 
 @Injectable()
 export class MemberService {
@@ -42,6 +43,7 @@ export class MemberService {
 		private readonly viewService: ViewService,
 		private readonly likeService: LikeService,
 		private readonly followService: FollowService,
+		private readonly cacheService: CacheService,
 	) {}
 	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
@@ -126,6 +128,9 @@ export class MemberService {
 			)
 			.exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.SELLERS);
+		await this.cacheService.bump(CacheGroup.ARTICLES);
+		await this.cacheService.bump(CacheGroup.REVIEWS);
 		return result;
 	}
 
@@ -184,6 +189,7 @@ export class MemberService {
 			targetKey: 'memberFollowers',
 			modifier: 1,
 		});
+		await this.cacheService.bump(CacheGroup.SELLERS);
 
 		return result;
 	}
@@ -203,6 +209,7 @@ export class MemberService {
 			targetKey: 'memberFollowers',
 			modifier: -1,
 		});
+		await this.cacheService.bump(CacheGroup.SELLERS);
 
 		return result;
 	}
@@ -229,10 +236,25 @@ export class MemberService {
 			modifier: modifier,
 		});
 		if (!result) throw new InternalServerErrorException(Message.SOMETHING_WENT_WRONG);
+		await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 
 	public async getSellers(
+		memberId: Types.ObjectId | null,
+		input: SellersInquiry,
+	): Promise<Members> {
+		if (input.search.text) return await this.findSellers(memberId, input);
+		const result = await this.cacheService.wrap(CacheGroup.SELLERS, input, () => this.findSellers(null, input));
+		if (!memberId) return result;
+		return await this.cacheService.attachMe(result, this.memberModel, [
+			lookAuthMemberLiked(memberId),
+			lookAuthMemberFollowed({ followerId: memberId, followingId: '$_id' }),
+			{ $project: { meLiked: 1, meFollowed: 1 } },
+		]);
+	}
+
+	private async findSellers(
 		memberId: Types.ObjectId | null,
 		input: SellersInquiry,
 	): Promise<Members> {
@@ -324,6 +346,7 @@ export class MemberService {
 			.findOneAndUpdate({ _id }, update, { new: true, runValidators: true })
 			.exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 
@@ -346,6 +369,7 @@ export class MemberService {
 			notificationRefId: result._id,
 			notificationRefType: NotificationRefType.MEMBER,
 		});
+		await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 

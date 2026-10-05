@@ -10,6 +10,7 @@ import { Direction, Message } from '../../libs/enums/common.enum';
 import { OrderStatus } from '../../libs/enums/order.enum';
 import { lookupBuyerData } from '../../libs/config';
 import { T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 import { MemberService } from '../member/member.service';
 import { OrderService } from '../order/order.service';
 
@@ -20,6 +21,7 @@ export class ReviewService {
 		@InjectConnection() private readonly connection: Connection,
 		private readonly memberService: MemberService,
 		private readonly orderService: OrderService,
+		private readonly cacheService: CacheService,
 	) {}
 
 	public async createReview(
@@ -33,7 +35,7 @@ export class ReviewService {
 		)
 			throw new BadRequestException(Message.REVIEW_NOT_ALLOWED);
 
-		return await this.connection.transaction(async (session) => {
+		const review = await this.connection.transaction(async (session) => {
 			let result: Review | null = null;
 			try {
 				[result] = await this.reviewModel.create(
@@ -56,12 +58,19 @@ export class ReviewService {
 			await this.memberService.memberRatingEditor(order.sellerId, input.reviewRating, session);
 			return result;
 		});
+		await this.cacheService.bump(CacheGroup.REVIEWS);
+		await this.cacheService.bump(CacheGroup.SELLERS);
+		return review;
 	}
 
 	public async getReviews(
 		memberId: Types.ObjectId | null,
 		input: ReviewsInquiry,
 	): Promise<Reviews> {
+		return await this.cacheService.wrap(CacheGroup.REVIEWS, input, () => this.findReviews(input));
+	}
+
+	private async findReviews(input: ReviewsInquiry): Promise<Reviews> {
 		const { page, limit, search } = input;
 		const match: T = { sellerId: search.sellerId };
 
