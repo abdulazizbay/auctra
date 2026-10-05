@@ -25,7 +25,7 @@ import { lookAuthMemberFollowed, lookAuthMemberLiked } from '../../libs/config';
 import { Follower } from '../../libs/dto/follow/follow';
 import { FollowService } from '../follow/follow.service';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
-import { MemberAuthType, MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
+import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import {
 	MemberUpdate,
 	SellerApply,
@@ -83,10 +83,7 @@ export class MemberService {
 	}
 	public async socialLogin(input: SocialLoginInput): Promise<AuthResponse> {
 		const { memberAuthType, token } = input;
-		if (memberAuthType !== MemberAuthType.GOOGLE) {
-			throw new BadRequestException(Message.BAD_REQUEST);
-		}
-		const profile = await this.authService.verifyGoogle(token);
+		const profile = await this.authService.verifySocial(memberAuthType, token);
 		let member = await this.memberModel.findOne({ memberAuthType, memberSocialId: profile.socialId }).exec();
 		if (!member) {
 			const emailUsed = profile.email && (await this.memberModel.exists({ memberEmail: profile.email }));
@@ -107,7 +104,7 @@ export class MemberService {
 	}
 
 	private async generateNick(name?: string): Promise<string> {
-		const base = (name ?? '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 7) || 'member';
+		const base = (name ?? '').replace(/[^a-zA-Z0-9_가-힣]/g, '').slice(0, 7) || 'member';
 		while (true) {
 			const nick = `${base}_${Math.floor(1000 + Math.random() * 9000)}`;
 			if (!(await this.memberModel.exists({ memberNick: nick }))) return nick;
