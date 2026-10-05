@@ -11,6 +11,7 @@ import {
 	MemberInput,
 	MembersInquiry,
 	SellersInquiry,
+	SocialLoginInput,
 } from '../../libs/dto/member/member.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
@@ -24,7 +25,7 @@ import { lookAuthMemberFollowed, lookAuthMemberLiked } from '../../libs/config';
 import { Follower } from '../../libs/dto/follow/follow';
 import { FollowService } from '../follow/follow.service';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
-import { MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
+import { MemberAuthType, MemberSellerStatus, MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import {
 	MemberUpdate,
 	SellerApply,
@@ -66,6 +67,9 @@ export class MemberService {
 		} else if (response.memberStatus === MemberStatus.BLOCK) {
 			throw new InternalServerErrorException(Message.BLOCKED_USER);
 		}
+		if (!response.memberPassword) {
+			throw new InternalServerErrorException(Message.SOCIAL_ACCOUNT);
+		}
 		// compare password
 		const isMatch = await this.authService.comparePasswords(
 			input.memberPassword,
@@ -77,6 +81,39 @@ export class MemberService {
 		const accessToken = await this.authService.createToken(response);
 		return { member: response, accessToken };
 	}
+	public async socialLogin(input: SocialLoginInput): Promise<AuthResponse> {
+		const { memberAuthType, token } = input;
+		if (memberAuthType !== MemberAuthType.GOOGLE) {
+			throw new BadRequestException(Message.BAD_REQUEST);
+		}
+		const profile = await this.authService.verifyGoogle(token);
+		let member = await this.memberModel.findOne({ memberAuthType, memberSocialId: profile.socialId }).exec();
+		if (!member) {
+			const emailUsed = profile.email && (await this.memberModel.exists({ memberEmail: profile.email }));
+			member = await this.memberModel.create({
+				memberNick: await this.generateNick(profile.name),
+				memberAuthType,
+				memberSocialId: profile.socialId,
+				memberEmail: emailUsed ? undefined : profile.email,
+				memberImage: profile.image ?? '',
+			});
+		} else if (member.memberStatus === MemberStatus.DELETE) {
+			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+		} else if (member.memberStatus === MemberStatus.BLOCK) {
+			throw new InternalServerErrorException(Message.BLOCKED_USER);
+		}
+		const accessToken = await this.authService.createToken(member);
+		return { member, accessToken };
+	}
+
+	private async generateNick(name?: string): Promise<string> {
+		const base = (name ?? '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 7) || 'member';
+		while (true) {
+			const nick = `${base}_${Math.floor(1000 + Math.random() * 9000)}`;
+			if (!(await this.memberModel.exists({ memberNick: nick }))) return nick;
+		}
+	}
+
 	public async updateMember(
 		memberId: Types.ObjectId,
 		input: MemberUpdate,

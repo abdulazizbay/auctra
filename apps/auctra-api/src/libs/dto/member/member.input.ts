@@ -2,7 +2,7 @@ import { Field, InputType, Int } from '@nestjs/graphql';
 import { IsIn, IsNotEmpty, IsOptional, Length, Max, Min } from 'class-validator';
 import { availableMemberSorts, availableSellerSorts } from '../../config';
 import { Direction } from '../../enums/common.enum';
-import { MemberSellerStatus, MemberStatus, MemberType } from '../../enums/member.enum';
+import { MemberAuthType, MemberSellerStatus, MemberStatus, MemberType } from '../../enums/member.enum';
 
 @InputType()
 export class MemberInput {
@@ -32,6 +32,17 @@ export class LoginInput {
 	@Length(5, 12)
 	@Field(() => String)
 	memberPassword!: string;
+}
+
+@InputType()
+export class SocialLoginInput {
+	@IsNotEmpty()
+	@Field(() => MemberAuthType)
+	memberAuthType!: MemberAuthType;
+
+	@IsNotEmpty()
+	@Field(() => String)
+	token!: string;
 }
 
 @InputType()

@@ -3,6 +3,7 @@ import { AuthResponse, Member, Members } from '../../libs/dto/member/member';
 import { Follower } from '../../libs/dto/follow/follow';
 import {
 	LoginInput,
+	SocialLoginInput,
 	MemberInput,
 	MembersInquiry,
 	SellersInquiry,
@@ -38,6 +39,12 @@ export class MemberResolver {
 	public async login(@Args('input') input: LoginInput): Promise<AuthResponse> {
 		console.log('Mutation: login');
 		return await this.memberService.login(input);
+	}
+
+	@Mutation(() => AuthResponse)
+	public async socialLogin(@Args('input') input: SocialLoginInput): Promise<AuthResponse> {
+		console.log('Mutation: socialLogin');
+		return await this.memberService.socialLogin(input);
 	}
 
 	@UseGuards(AuthGuard)

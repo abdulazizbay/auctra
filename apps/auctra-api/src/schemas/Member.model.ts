@@ -1,5 +1,11 @@
- import { Schema } from 'mongoose';
-import { MemberLocation, MemberSellerStatus, MemberStatus, MemberType } from '../libs/enums/member.enum';
+import { Schema } from 'mongoose';
+import {
+	MemberAuthType,
+	MemberLocation,
+	MemberSellerStatus,
+	MemberStatus,
+	MemberType,
+} from '../libs/enums/member.enum';
 
 const MemberSchema = new Schema(
 	{
@@ -12,7 +18,9 @@ const MemberSchema = new Schema(
 		memberPhone: {
 			type: String,
 			index: { unique: true, sparse: true },
-			required: true,
+			required: function () {
+				return this.memberAuthType === MemberAuthType.LOCAL;
+			},
 		},
 
 		memberEmail: {
@@ -23,7 +31,19 @@ const MemberSchema = new Schema(
 		memberPassword: {
 			type: String,
 			select: false,
-			required: true,
+			required: function () {
+				return this.memberAuthType === MemberAuthType.LOCAL;
+			},
+		},
+
+		memberAuthType: {
+			type: String,
+			enum: MemberAuthType,
+			default: MemberAuthType.LOCAL,
+		},
+
+		memberSocialId: {
+			type: String,
 		},
 
 		memberType: {
@@ -110,6 +130,15 @@ const MemberSchema = new Schema(
 		},
 	},
 	{ timestamps: true, collection: 'members' },
+);
+
+MemberSchema.index(
+	{ memberAuthType: 1, memberSocialId: 1 },
+	// Only index members where socialId exist
+	{
+		unique: true,
+		partialFilterExpression: { memberSocialId: { $exists: true } },
+	},
 );
 
 export default MemberSchema;

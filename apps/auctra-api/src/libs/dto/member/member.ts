@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { MeLiked } from '../like/like';
 import { MeFollowed } from '../follow/follow';
 import {
+	MemberAuthType,
 	MemberLocation,
 	MemberSellerStatus,
 	MemberStatus,
@@ -17,13 +18,17 @@ export class Member {
 	@Field(() => String)
 	memberNick!: string;
 
-	@Field(() => String)
-	memberPhone!: string;
+	@Field(() => String, { nullable: true })
+	memberPhone?: string;
 
 	@Field(() => String, { nullable: true })
 	memberEmail?: string;
 
-	memberPassword!: string;
+	memberPassword?: string;
+
+	memberAuthType!: MemberAuthType;
+
+	memberSocialId?: string;
 
 	@Field(() => MemberType)
 	memberType!: MemberType;
