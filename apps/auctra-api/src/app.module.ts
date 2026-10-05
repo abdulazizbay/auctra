@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { GraphQLModule } from "@nestjs/graphql";
+import { BullModule } from "@nestjs/bullmq";
 import { ApolloDriver } from "@nestjs/apollo";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -9,10 +10,14 @@ import { DatabaseModule } from "./database/database.module";
 import { ComponentsModule } from "./components/components.module";
 import { SocketModule } from "./socket/socket.module";
 import { T } from "./libs/types/common";
+import { redisConnection } from "./libs/config";
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
+    BullModule.forRoot({
+      connection: { ...redisConnection(), enableOfflineQueue: false },
+    }),
     GraphQLModule.forRoot({
       driver: ApolloDriver,
       playground: process.env.NODE_ENV !== "production",
