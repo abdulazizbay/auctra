@@ -7,21 +7,32 @@ import { NoticeUpdate } from '../../libs/dto/notice/notice.update';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { NoticeStatus } from '../../libs/enums/notice.enum';
 import { T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 
 @Injectable()
 export class NoticeService {
-	constructor(@InjectModel('Notice') private readonly noticeModel: Model<Notice>) {}
+	constructor(
+		@InjectModel('Notice') private readonly noticeModel: Model<Notice>,
+		private readonly cacheService: CacheService,
+	) {}
 
 	public async createNotice(input: NoticeInput): Promise<Notice> {
+		let result: Notice;
 		try {
-			return await this.noticeModel.create(input);
+			result = await this.noticeModel.create(input);
 		} catch (err) {
 			console.log('Error, Service.model:', err);
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
+		await this.cacheService.bump(CacheGroup.NOTICES);
+		return result;
 	}
 
 	public async getNotices(input: NoticesInquiry): Promise<Notices> {
+		return await this.cacheService.wrap(CacheGroup.NOTICES, input, () => this.findNotices(input));
+	}
+
+	private async findNotices(input: NoticesInquiry): Promise<Notices> {
 		const { noticeType } = input.search;
 		const match: T = { noticeStatus: NoticeStatus.ACTIVE };
 		if (noticeType) match.noticeType = noticeType;
@@ -66,12 +77,14 @@ export class NoticeService {
 		const { _id, ...update } = input;
 		const result = await this.noticeModel.findOneAndUpdate({ _id: _id }, update, { new: true }).exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.NOTICES);
 		return result;
 	}
 
 	public async removeNoticeByAdmin(noticeId: Types.ObjectId): Promise<Notice> {
 		const result = await this.noticeModel.findByIdAndDelete(noticeId).exec();
 		if (!result) throw new InternalServerErrorException(Message.REMOVE_FAILED);
+		await this.cacheService.bump(CacheGroup.NOTICES);
 		return result;
 	}
 }

@@ -13,6 +13,8 @@ export enum Message {
 	NO_MEMBER_NICK = 'No member with that member nick!',
 	BLOCKED_USER = 'You have been blocked!',
 	WRONG_PASSWORD = 'Wrong password, try again!',
+	SOCIAL_ACCOUNT = 'This account uses social login!',
+	SOCIAL_LOGIN_FAILED = 'Social login failed, try again!',
 	NOT_AUTHENTICATED = 'You are not authenticated, please login first!',
 	TOKEN_NOT_EXIST = 'Bearer Token is not provided!',
 	ONLY_SPECIFIC_ROLES_ALLOWED = 'Allowed only for members with specific roles!',
@@ -20,6 +22,7 @@ export enum Message {
 	PROVIDE_ALLOWED_FORMAT = 'Please provide jpg, jpeg or png images!',
 	SELF_FOLLOW_DENIED = 'Self follow is denied!',
 	SELF_LIKE_DENIED = 'Self like is denied!',
+	TOO_MANY_REQUESTS = 'Too many requests, please try again later!',
 
 	INVALID_LOT_TIME = 'Lot must start now or later and end after it starts!',
 	INVALID_CEILING_PRICE = 'Ceiling price must be higher than start price!',

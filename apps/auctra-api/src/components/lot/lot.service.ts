@@ -4,13 +4,23 @@ import {
 	InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { ClientSession, Model, Types } from 'mongoose';
 import { Lot, Lots } from '../../libs/dto/lot/lot';
 import { LotInput, LotsInquiry, OrdinaryInquiry } from '../../libs/dto/lot/lot.input';
 import { LotUpdate } from '../../libs/dto/lot/lot.update';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { LotStatus, publicLotStatuses } from '../../libs/enums/lot.enum';
-import { lookAuthMemberWatched, lookupMember, shapeIntoMongoObjectId } from '../../libs/config';
+import {
+	LOT_QUEUE,
+	LotJob,
+	lookAuthMemberWatched,
+	lookupMember,
+	lotJob,
+	lotJobs,
+	shapeIntoMongoObjectId,
+} from '../../libs/config';
 import { StatisticModifier, T } from '../../libs/types/common';
 import { WatchService } from '../watch/watch.service';
 import { FollowService } from '../follow/follow.service';
@@ -33,7 +43,25 @@ export class LotService {
 		private readonly memberService: MemberService,
 		private readonly notificationService: NotificationService,
 		private readonly socketGateway: SocketGateway,
+		@InjectQueue(LOT_QUEUE) private readonly lotQueue: Queue,
 	) {}
+
+	public async scheduleLot(lot: Lot): Promise<void> {
+		try {
+			await this.lotQueue.addBulk(lotJobs(lot));
+		} catch (err) {
+			console.log('Error, scheduleLot:', lot._id, err);
+		}
+	}
+
+	public async closeLotNow(lotId: Types.ObjectId): Promise<void> {
+		try {
+			const job = lotJob(LotJob.CLOSE, lotId, new Date());
+			await this.lotQueue.add(job.name, job.data, job.opts);
+		} catch (err) {
+			console.log('Error, closeLotNow:', lotId, err);
+		}
+	}
 
 	public async createLot(
 		memberId: Types.ObjectId,
@@ -67,6 +95,7 @@ export class LotService {
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
 
+		await this.scheduleLot(result);
 		if (result.lotStatus === LotStatus.OPEN) {
 			const followerIds = await this.followService.getFollowerIds(memberId);
 			await Promise.all(
@@ -193,6 +222,7 @@ export class LotService {
 			)
 			.exec();
 		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
+		await this.scheduleLot(result);
 		return result;
 	}
 
@@ -215,6 +245,7 @@ export class LotService {
 			.findOneAndUpdate(filter, update, { new: true, runValidators: true })
 			.exec();
 		if (!result) throw new BadRequestException(Message.LOT_NOT_EDITABLE);
+		await this.scheduleLot(result);
 
 		if (result.lotStatus === LotStatus.CANCELLED) {
 			const [bidderIds, watcherIds] = await Promise.all([

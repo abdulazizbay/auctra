@@ -11,6 +11,7 @@ import {
 	MemberInput,
 	MembersInquiry,
 	SellersInquiry,
+	SocialLoginInput,
 } from '../../libs/dto/member/member.input';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
@@ -31,6 +32,7 @@ import {
 	SellerStatusUpdate,
 } from '../../libs/dto/member/member.update';
 import { StatisticModifier, T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 
 @Injectable()
 export class MemberService {
@@ -41,6 +43,7 @@ export class MemberService {
 		private readonly viewService: ViewService,
 		private readonly likeService: LikeService,
 		private readonly followService: FollowService,
+		private readonly cacheService: CacheService,
 	) {}
 	public async signup(input: MemberInput): Promise<AuthResponse> {
 		input.memberPassword = await this.authService.hashPassword(
@@ -66,6 +69,9 @@ export class MemberService {
 		} else if (response.memberStatus === MemberStatus.BLOCK) {
 			throw new InternalServerErrorException(Message.BLOCKED_USER);
 		}
+		if (!response.memberPassword) {
+			throw new InternalServerErrorException(Message.SOCIAL_ACCOUNT);
+		}
 		// compare password
 		const isMatch = await this.authService.comparePasswords(
 			input.memberPassword,
@@ -77,6 +83,36 @@ export class MemberService {
 		const accessToken = await this.authService.createToken(response);
 		return { member: response, accessToken };
 	}
+	public async socialLogin(input: SocialLoginInput): Promise<AuthResponse> {
+		const { memberAuthType, token } = input;
+		const profile = await this.authService.verifySocial(memberAuthType, token);
+		let member = await this.memberModel.findOne({ memberAuthType, memberSocialId: profile.socialId }).exec();
+		if (!member) {
+			const emailUsed = profile.email && (await this.memberModel.exists({ memberEmail: profile.email }));
+			member = await this.memberModel.create({
+				memberNick: await this.generateNick(profile.name),
+				memberAuthType,
+				memberSocialId: profile.socialId,
+				memberEmail: emailUsed ? undefined : profile.email,
+				memberImage: profile.image ?? '',
+			});
+		} else if (member.memberStatus === MemberStatus.DELETE) {
+			throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+		} else if (member.memberStatus === MemberStatus.BLOCK) {
+			throw new InternalServerErrorException(Message.BLOCKED_USER);
+		}
+		const accessToken = await this.authService.createToken(member);
+		return { member, accessToken };
+	}
+
+	private async generateNick(name?: string): Promise<string> {
+		const base = (name ?? '').replace(/[^a-zA-Z0-9_가-힣]/g, '').slice(0, 7) || 'member';
+		while (true) {
+			const nick = `${base}_${Math.floor(1000 + Math.random() * 9000)}`;
+			if (!(await this.memberModel.exists({ memberNick: nick }))) return nick;
+		}
+	}
+
 	public async updateMember(
 		memberId: Types.ObjectId,
 		input: MemberUpdate,
@@ -92,6 +128,9 @@ export class MemberService {
 			)
 			.exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.SELLERS);
+		await this.cacheService.bump(CacheGroup.ARTICLES);
+		await this.cacheService.bump(CacheGroup.REVIEWS);
 		return result;
 	}
 
@@ -150,6 +189,7 @@ export class MemberService {
 			targetKey: 'memberFollowers',
 			modifier: 1,
 		});
+		await this.cacheService.bump(CacheGroup.SELLERS);
 
 		return result;
 	}
@@ -169,6 +209,7 @@ export class MemberService {
 			targetKey: 'memberFollowers',
 			modifier: -1,
 		});
+		await this.cacheService.bump(CacheGroup.SELLERS);
 
 		return result;
 	}
@@ -195,10 +236,25 @@ export class MemberService {
 			modifier: modifier,
 		});
 		if (!result) throw new InternalServerErrorException(Message.SOMETHING_WENT_WRONG);
+		await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 
 	public async getSellers(
+		memberId: Types.ObjectId | null,
+		input: SellersInquiry,
+	): Promise<Members> {
+		if (input.search.text) return await this.findSellers(memberId, input);
+		const result = await this.cacheService.wrap(CacheGroup.SELLERS, input, () => this.findSellers(null, input));
+		if (!memberId) return result;
+		return await this.cacheService.attachMe(result, this.memberModel, [
+			lookAuthMemberLiked(memberId),
+			lookAuthMemberFollowed({ followerId: memberId, followingId: '$_id' }),
+			{ $project: { meLiked: 1, meFollowed: 1 } },
+		]);
+	}
+
+	private async findSellers(
 		memberId: Types.ObjectId | null,
 		input: SellersInquiry,
 	): Promise<Members> {
@@ -290,6 +346,7 @@ export class MemberService {
 			.findOneAndUpdate({ _id }, update, { new: true, runValidators: true })
 			.exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 
@@ -312,6 +369,7 @@ export class MemberService {
 			notificationRefId: result._id,
 			notificationRefType: NotificationRefType.MEMBER,
 		});
+		await this.cacheService.bump(CacheGroup.SELLERS);
 		return result;
 	}
 

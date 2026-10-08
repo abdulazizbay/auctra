@@ -74,6 +74,7 @@ export class BidService {
 			},
 		});
 		if (outbid) this.notificationService.pushNotification(outbid);
+		if (result.bidPrice === previousLot.lotCeilingPrice) await this.lotService.closeLotNow(previousLot._id);
 		return result;
 	}
 

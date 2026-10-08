@@ -18,6 +18,7 @@ import { ViewGroup } from '../../libs/enums/view.enum';
 import { LikeGroup } from '../../libs/enums/like.enum';
 import { LikeInput } from '../../libs/dto/like/like.input';
 import { StatisticModifier, T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 import {
 	lookAuthMemberLiked,
 	lookupMember,
@@ -42,6 +43,7 @@ export class ArticleService {
 		private readonly likeService: LikeService,
 		private readonly followService: FollowService,
 		private readonly notificationService: NotificationService,
+		private readonly cacheService: CacheService,
 	) {}
 	public async createArticle(
 		memberId: Types.ObjectId,
@@ -54,6 +56,7 @@ export class ArticleService {
 			console.log('Error, Service.model:', err);
 			throw new BadRequestException(Message.CREATE_FAILED);
 		}
+		await this.cacheService.bump(CacheGroup.ARTICLES);
 
 		const followerIds = await this.followService.getFollowerIds(memberId);
 		await Promise.all(
@@ -124,10 +127,24 @@ export class ArticleService {
 			)
 			.exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.ARTICLES);
 		return result;
 	}
 
 	public async getArticles(
+		memberId: Types.ObjectId | null,
+		input: ArticlesInquiry,
+	): Promise<Articles> {
+		if (input.search.text) return await this.findArticles(memberId, input);
+		const result = await this.cacheService.wrap(CacheGroup.ARTICLES, input, () => this.findArticles(null, input));
+		if (!memberId) return result;
+		return await this.cacheService.attachMe(result, this.articleModel, [
+			lookAuthMemberLiked(memberId),
+			{ $project: { meLiked: 1 } },
+		]);
+	}
+
+	private async findArticles(
 		memberId: Types.ObjectId | null,
 		input: ArticlesInquiry,
 	): Promise<Articles> {
@@ -188,6 +205,7 @@ export class ArticleService {
 		});
 		if (!result)
 			throw new InternalServerErrorException(Message.SOMETHING_WENT_WRONG);
+		await this.cacheService.bump(CacheGroup.ARTICLES);
 		return result;
 	}
 
@@ -233,6 +251,7 @@ export class ArticleService {
 			)
 			.exec();
 		if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+		await this.cacheService.bump(CacheGroup.ARTICLES);
 		return result;
 	}
 

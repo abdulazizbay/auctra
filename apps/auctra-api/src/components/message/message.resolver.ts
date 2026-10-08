@@ -7,12 +7,15 @@ import { shapeIntoMongoObjectId } from '../../libs/config';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { MessageService } from './message.service';
+import { Throttle, minutes } from '@nestjs/throttler';
+import { GqlThrottlerGuard } from '../auth/guards/gql-throttler.guard';
 
 @Resolver()
 export class MessageResolver {
 	constructor(private readonly messageService: MessageService) {}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 20, ttl: minutes(1) } })
 	@Mutation(() => OrderMessage)
 	public async sendMessage(
 		@Args('input') input: MessageInput,

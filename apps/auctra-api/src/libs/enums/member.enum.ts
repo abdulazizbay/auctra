@@ -35,3 +35,10 @@ export enum MemberSellerStatus {
 	REJECTED = 'REJECTED',
 }
 registerEnumType(MemberSellerStatus, { name: 'MemberSellerStatus' });
+
+export enum MemberAuthType {
+	LOCAL = 'LOCAL',
+	GOOGLE = 'GOOGLE',
+	KAKAO = 'KAKAO',
+}
+registerEnumType(MemberAuthType, { name: 'MemberAuthType' });

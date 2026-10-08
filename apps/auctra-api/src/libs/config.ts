@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { T } from './types/common';
+import { LotStatus } from './enums/lot.enum';
 
 export const shapeIntoMongoObjectId = (target: any) => {
 	return typeof target === 'string' ? new Types.ObjectId(target) : target;
@@ -218,3 +219,73 @@ export const lookupFollowerData = {
 		as: 'followerData',
 	},
 };
+
+export const redisConnection = () => ({
+	host: process.env.REDIS_HOST ?? 'localhost',
+	port: Number(process.env.REDIS_PORT ?? 6379),
+});
+
+export const LOT_QUEUE = 'lots';
+
+export enum LotJob {
+	OPEN = 'openLot',
+	CLOSE = 'closeLot',
+}
+
+export const lotJob = (name: LotJob, lotId: Types.ObjectId, at: Date) => ({
+	name,
+	data: { lotId: String(lotId) },
+	opts: {
+		jobId: `${name}-${lotId}-${at.getTime()}`,
+		delay: Math.max(0, at.getTime() - Date.now()),
+		attempts: 3,
+		backoff: { type: 'exponential', delay: 1000 },
+		removeOnComplete: true,
+		removeOnFail: 100,
+	},
+});
+
+export const lotJobs = (lot: { _id: Types.ObjectId; lotStatus: LotStatus; lotStartsAt: Date; lotEndsAt: Date }) => {
+	if (lot.lotStatus === LotStatus.SCHEDULED)
+		return [lotJob(LotJob.OPEN, lot._id, lot.lotStartsAt), lotJob(LotJob.CLOSE, lot._id, lot.lotEndsAt)];
+	if (lot.lotStatus === LotStatus.OPEN) return [lotJob(LotJob.CLOSE, lot._id, lot.lotEndsAt)];
+	return [];
+};
+// ex:
+// [
+//   {
+//     name: "openLot",
+//     data: {
+//       lotId: "abc123"
+//     },
+//     opts: {
+//       jobId: "openLot-abc123-...",
+//       delay: ...,
+//       attempts: 3,
+//       backoff: {
+//         type: "exponential",
+//         delay: 1000
+//       },
+//       removeOnComplete: true,
+//       removeOnFail: 100
+//     }
+//   },
+
+//   {
+//     name: "closeLot",
+//     data: {
+//       lotId: "abc123"
+//     },
+//     opts: {
+//       jobId: "closeLot-abc123-...",
+//       delay: ...,
+//       attempts: 3,
+//       backoff: {
+//         type: "exponential",
+//         delay: 1000
+//       },
+//       removeOnComplete: true,
+//       removeOnFail: 100
+//     }
+//   }
+// ]

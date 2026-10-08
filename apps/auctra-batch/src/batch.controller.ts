@@ -1,29 +1,27 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { BatchService } from './batch.service';
-import { BATCH_CLOSE_LOTS, BATCH_EXPIRE_ORDERS, BATCH_OPEN_LOTS } from './lib/config';
+import { BATCH_EXPIRE_ORDERS, BATCH_SWEEP_LOTS } from './lib/config';
 
 @Controller()
-export class BatchController {
+export class BatchController implements OnApplicationBootstrap {
 	private logger: Logger = new Logger('BatchController');
 	constructor(private readonly batchService: BatchService) {}
 
-	@Cron('00 * * * * *', { name: BATCH_OPEN_LOTS })
-	public async batchOpenLots() {
+	public async onApplicationBootstrap() {
 		try {
-			this.logger['context'] = BATCH_OPEN_LOTS;
-			this.logger.debug('EXECUTED');
-			await this.batchService.batchOpenLots();
+			await this.batchService.scheduleLots();
 		} catch (err) {
 			this.logger.error(err);
 		}
 	}
 
-	@Cron('*/10 * * * * *', { name: BATCH_CLOSE_LOTS })
-	public async batchCloseLots() {
+	@Cron('30 */5 * * * *', { name: BATCH_SWEEP_LOTS })
+	public async batchSweepLots() {
 		try {
-			this.logger['context'] = BATCH_CLOSE_LOTS;
+			this.logger['context'] = BATCH_SWEEP_LOTS;
 			this.logger.debug('EXECUTED');
+			await this.batchService.batchOpenLots();
 			await this.batchService.batchCloseLots();
 		} catch (err) {
 			this.logger.error(err);

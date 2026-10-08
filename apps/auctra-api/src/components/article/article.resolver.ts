@@ -16,12 +16,15 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { WithoutGuard } from '../auth/guards/without.guard';
 import { ArticleService } from './article.service';
+import { Throttle, minutes } from '@nestjs/throttler';
+import { GqlThrottlerGuard } from '../auth/guards/gql-throttler.guard';
 
 @Resolver()
 export class ArticleResolver {
 	constructor(private readonly articleService: ArticleService) {}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 5, ttl: minutes(1) } })
 	@Mutation(() => Article)
 	public async createArticle(
 		@Args('input') input: ArticleInput,
@@ -64,7 +67,8 @@ export class ArticleResolver {
 		return await this.articleService.getArticles(memberId, input);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 30, ttl: minutes(1) } })
 	@Mutation(() => Article)
 	public async likeTargetArticle(
 		@Args('articleId') input: string,

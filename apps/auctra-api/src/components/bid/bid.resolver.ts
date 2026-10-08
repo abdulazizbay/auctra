@@ -9,12 +9,15 @@ import { Member } from '../../libs/dto/member/member';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { WithoutGuard } from '../auth/guards/without.guard';
 import { BidService } from './bid.service';
+import { Throttle, seconds } from '@nestjs/throttler';
+import { GqlThrottlerGuard } from '../auth/guards/gql-throttler.guard';
 
 @Resolver()
 export class BidResolver {
 	constructor(private readonly bidService: BidService) {}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 5, ttl: seconds(10) } })
 	@Mutation(() => Bid)
 	public async placeBid(
 		@Args('input') input: BidInput,

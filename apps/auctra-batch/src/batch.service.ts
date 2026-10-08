@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model } from 'mongoose';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { Connection, Model, Types } from 'mongoose';
 import { Lot } from 'apps/auctra-api/src/libs/dto/lot/lot';
 import { LotStatus } from 'apps/auctra-api/src/libs/enums/lot.enum';
 import { OrderStatus } from 'apps/auctra-api/src/libs/enums/order.enum';
@@ -13,6 +15,7 @@ import {
 	NotificationType,
 } from 'apps/auctra-api/src/libs/enums/notification.enum';
 import { T } from 'apps/auctra-api/src/libs/types/common';
+import { LOT_QUEUE, lotJobs } from 'apps/auctra-api/src/libs/config';
 import { ORDER_PAYMENT_WINDOW } from './lib/config';
 
 @Injectable()
@@ -26,7 +29,17 @@ export class BatchService {
 		@InjectModel('Bid') private readonly bidModel: Model<Bid>,
 		@InjectModel('Follow') private readonly followModel: Model<Follower>,
 		@InjectConnection() private readonly connection: Connection,
+		@InjectQueue(LOT_QUEUE) private readonly lotQueue: Queue,
 	) {}
+
+	public async scheduleLots(): Promise<void> {
+		const lots = await this.lotModel
+			.find({ lotStatus: { $in: [LotStatus.SCHEDULED, LotStatus.OPEN] } })
+			.select('_id lotStatus lotStartsAt lotEndsAt')
+			.lean()
+			.exec();
+		await this.lotQueue.addBulk(lots.flatMap((lot) => lotJobs(lot)));
+	}
 
 	public async batchOpenLots(): Promise<void> {
 		const lots = await this.lotModel
@@ -40,36 +53,40 @@ export class BatchService {
 
 		for (const { _id } of lots) {
 			try {
-				const lot = await this.lotModel
-					.findOneAndUpdate(
-						{ _id, lotStatus: LotStatus.SCHEDULED },
-						{ lotStatus: LotStatus.OPEN },
-						{ new: true },
-					)
-					.exec();
-				if (!lot) continue;
-
-				const followerIds = await this.followModel
-					.distinct('followerId', { followingId: lot.memberId })
-					.exec();
-				const notifications = await this.notificationModel.insertMany(
-					followerIds.map((memberId) => ({
-						memberId: memberId,
-						notificationType: NotificationType.NEW_LOT_FROM_FOLLOWED,
-						notificationRefId: lot._id,
-						notificationRefType: NotificationRefType.LOT,
-						notificationPayload: { lotName: lot.lotName },
-					})),
-				);
-				for (const notification of notifications)
-					await this.emitToRoom(`member:${notification.memberId}`, {
-						event: 'notification',
-						notification: notification,
-					});
+				await this.openLot(_id);
 			} catch (err) {
 				console.log('Error, batchOpenLots:', _id, err);
 			}
 		}
+	}
+
+	public async openLot(_id: Types.ObjectId): Promise<void> {
+		const lot = await this.lotModel
+			.findOneAndUpdate(
+				{ _id, lotStatus: LotStatus.SCHEDULED, lotStartsAt: { $lte: new Date() } },
+				{ lotStatus: LotStatus.OPEN },
+				{ new: true },
+			)
+			.exec();
+		if (!lot) return;
+
+		const followerIds = await this.followModel
+			.distinct('followerId', { followingId: lot.memberId })
+			.exec();
+		const notifications = await this.notificationModel.insertMany(
+			followerIds.map((memberId) => ({
+				memberId: memberId,
+				notificationType: NotificationType.NEW_LOT_FROM_FOLLOWED,
+				notificationRefId: lot._id,
+				notificationRefType: NotificationRefType.LOT,
+				notificationPayload: { lotName: lot.lotName },
+			})),
+		);
+		for (const notification of notifications)
+			await this.emitToRoom(`member:${notification.memberId}`, {
+				event: 'notification',
+				notification: notification,
+			});
 	}
 
 	public async batchCloseLots(): Promise<void> {
@@ -81,123 +98,127 @@ export class BatchService {
 
 		for (const { _id } of lots) {
 			try {
-				const closed = await this.connection.transaction(async (session) => {
-					const now = new Date();
-					const lot = await this.lotModel
-						.findOneAndUpdate(
-							{ _id, lotStatus: LotStatus.OPEN, lotEndsAt: { $lte: now } },
-							[
-								{
-									$set: {
-										lotStatus: {
-											$cond: [
-												{ $gt: ['$lotBids', 0] },
-												LotStatus.SOLD,
-												LotStatus.UNSOLD,
-											],
-										},
-										lotClosedAt: now,
-									},
+				await this.closeLot(_id);
+			} catch (err) {
+				console.log('Error, batchCloseLots:', _id, err);
+			}
+		}
+	}
+
+	public async closeLot(_id: Types.ObjectId): Promise<void> {
+		const closed = await this.connection.transaction(async (session) => {
+			const now = new Date();
+			const lot = await this.lotModel
+				.findOneAndUpdate(
+					{ _id, lotStatus: LotStatus.OPEN, lotEndsAt: { $lte: now } },
+					[
+						{
+							$set: {
+								lotStatus: {
+									$cond: [
+										{ $gt: ['$lotBids', 0] },
+										LotStatus.SOLD,
+										LotStatus.UNSOLD,
+									],
 								},
-							],
-							{ new: true, session },
-						)
-						.exec();
-					if (!lot) return null;
-					if (lot.lotStatus !== LotStatus.SOLD)
-						return { lot, notification: null };
-
-					const order = await this.orderModel
-						.findOneAndUpdate(
-							{
-								buyerId: lot.lotHighestBidderId,
-								sellerId: lot.memberId,
-								orderStatus: OrderStatus.PENDING_PAYMENT,
+								lotClosedAt: now,
 							},
-							{
-								$inc: { orderTotal: lot.lotCurrentPrice },
-								$set: {
-									orderPaymentDueAt: new Date(
-										now.getTime() + ORDER_PAYMENT_WINDOW,
-									),
-								},
-							},
-							{ upsert: true, new: true, session },
-						)
-						.exec();
+						},
+					],
+					{ new: true, session },
+				)
+				.exec();
+			if (!lot) return null;
+			if (lot.lotStatus !== LotStatus.SOLD)
+				return { lot, notification: null };
 
-					await this.orderItemModel.create(
-						[
-							{
-								orderId: order._id,
-								lotId: lot._id,
-								itemPrice: lot.lotCurrentPrice,
-							},
-						],
-						{ session },
-					);
+			const order = await this.orderModel
+				.findOneAndUpdate(
+					{
+						buyerId: lot.lotHighestBidderId,
+						sellerId: lot.memberId,
+						orderStatus: OrderStatus.PENDING_PAYMENT,
+					},
+					{
+						$inc: { orderTotal: lot.lotCurrentPrice },
+						$set: {
+							orderPaymentDueAt: new Date(
+								now.getTime() + ORDER_PAYMENT_WINDOW,
+							),
+						},
+					},
+					{ upsert: true, new: true, session },
+				)
+				.exec();
 
-					const [notification] = await this.notificationModel.create(
-						[
-							{
-								memberId: lot.lotHighestBidderId,
-								notificationType: NotificationType.WON,
-								notificationRefId: lot._id,
-								notificationRefType: NotificationRefType.LOT,
-								notificationPayload: {
-									lotName: lot.lotName,
-									price: lot.lotCurrentPrice,
-								},
-							},
-						],
-						{ session },
-					);
-					return { lot, notification };
-				});
-				if (!closed) continue;
-
-				const { lot, notification } = closed;
-				await this.emitToRoom(`lot:${lot._id}`, {
-					event: 'lotClosed',
-					lotId: lot._id,
-					lotStatus: lot.lotStatus,
-					lotCurrentPrice: lot.lotCurrentPrice,
-					lotHighestBidderId: lot.lotHighestBidderId,
-					lotClosedAt: lot.lotClosedAt,
-				});
-				if (!notification) continue;
-				await this.emitToRoom(`member:${notification.memberId}`, {
-					event: 'notification',
-					notification: notification,
-				});
-
-				const loserIds = await this.bidModel
-					.distinct('memberId', {
+			await this.orderItemModel.create(
+				[
+					{
+						orderId: order._id,
 						lotId: lot._id,
-						memberId: { $ne: lot.lotHighestBidderId },
-					})
-					.exec();
-				const losts = await this.notificationModel.insertMany(
-					loserIds.map((memberId) => ({
-						memberId: memberId,
-						notificationType: NotificationType.LOST,
+						itemPrice: lot.lotCurrentPrice,
+					},
+				],
+				{ session },
+			);
+
+			const [notification] = await this.notificationModel.create(
+				[
+					{
+						memberId: lot.lotHighestBidderId,
+						notificationType: NotificationType.WON,
 						notificationRefId: lot._id,
 						notificationRefType: NotificationRefType.LOT,
 						notificationPayload: {
 							lotName: lot.lotName,
 							price: lot.lotCurrentPrice,
 						},
-					})),
-				);
-				for (const lost of losts)
-					await this.emitToRoom(`member:${lost.memberId}`, {
-						event: 'notification',
-						notification: lost,
-					});
-			} catch (err) {
-				console.log('Error, batchCloseLots:', _id, err);
-			}
-		}
+					},
+				],
+				{ session },
+			);
+			return { lot, notification };
+		});
+		if (!closed) return;
+
+		const { lot, notification } = closed;
+		await this.emitToRoom(`lot:${lot._id}`, {
+			event: 'lotClosed',
+			lotId: lot._id,
+			lotStatus: lot.lotStatus,
+			lotCurrentPrice: lot.lotCurrentPrice,
+			lotHighestBidderId: lot.lotHighestBidderId,
+			lotClosedAt: lot.lotClosedAt,
+		});
+		if (!notification) return;
+		await this.emitToRoom(`member:${notification.memberId}`, {
+			event: 'notification',
+			notification: notification,
+		});
+
+		const loserIds = await this.bidModel
+			.distinct('memberId', {
+				lotId: lot._id,
+				memberId: { $ne: lot.lotHighestBidderId },
+			})
+			.exec();
+		const losts = await this.notificationModel.insertMany(
+			loserIds.map((memberId) => ({
+				memberId: memberId,
+				notificationType: NotificationType.LOST,
+				notificationRefId: lot._id,
+				notificationRefType: NotificationRefType.LOT,
+				notificationPayload: {
+					lotName: lot.lotName,
+					price: lot.lotCurrentPrice,
+				},
+			})),
+		);
+		for (const lost of losts)
+			await this.emitToRoom(`member:${lost.memberId}`, {
+				event: 'notification',
+				notification: lost,
+			});
 	}
 
 	// send to api

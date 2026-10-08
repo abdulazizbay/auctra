@@ -12,13 +12,16 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { WithoutGuard } from '../auth/guards/without.guard';
 import { LotService } from './lot.service';
+import { Throttle, hours, minutes } from '@nestjs/throttler';
+import { GqlThrottlerGuard } from '../auth/guards/gql-throttler.guard';
 
 @Resolver()
 export class LotResolver {
 	constructor(private readonly lotService: LotService) {}
 
 	@Roles(MemberType.SELLER)
-	@UseGuards(RolesGuard)
+	@UseGuards(RolesGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 10, ttl: hours(1) } })
 	@Mutation(() => Lot)
 	public async createLot(
 		@Args('input') input: LotInput,
@@ -61,7 +64,8 @@ export class LotResolver {
 		return await this.lotService.updateLot(memberId, input);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(AuthGuard, GqlThrottlerGuard)
+	@Throttle({ default: { limit: 30, ttl: minutes(1) } })
 	@Mutation(() => Lot)
 	public async watchTargetLot(
 		@Args('lotId') input: string,

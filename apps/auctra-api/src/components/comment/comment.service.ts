@@ -11,6 +11,7 @@ import { Direction, Message } from '../../libs/enums/common.enum';
 import { NotificationRefType, NotificationType } from '../../libs/enums/notification.enum';
 import { lookupMember } from '../../libs/config';
 import { T } from '../../libs/types/common';
+import { CacheGroup, CacheService } from '../../libs/cache/cache.service';
 import { LotService } from '../lot/lot.service';
 import { ArticleService } from '../article/article.service';
 import { NotificationService } from '../notification/notification.service';
@@ -22,6 +23,7 @@ export class CommentService {
 		private readonly lotService: LotService,
 		private readonly articleService: ArticleService,
 		private readonly notificationService: NotificationService,
+		private readonly cacheService: CacheService,
 	) {}
 
 	public async createComment(memberId: Types.ObjectId, input: CommentInput): Promise<Comment> {
@@ -111,10 +113,12 @@ export class CommentService {
 				targetKey: 'lotComments',
 				modifier: modifier,
 			});
-		return await this.articleService.articleStatsEditor({
+		const result = await this.articleService.articleStatsEditor({
 			_id: commentRefId,
 			targetKey: 'articleComments',
 			modifier: modifier,
 		});
+		await this.cacheService.bump(CacheGroup.ARTICLES);
+		return result;
 	}
 }
