@@ -1,98 +1,103 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Auctra API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend for **Auctra**, a live auction marketplace for pre-owned luxury watches, jewellery, art and collectibles.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- Live: https://217-142-246-228.sslip.io
+- Frontend: [auctra-next](https://github.com/abdulazizbay/auctra-next)
 
-## Description
+## Features
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Live bidding**: bids are placed through a GraphQL mutation, and every viewer of the lot receives the update over WebSocket.
+- **Concurrency-safe bids**: each bid is one atomic compare-and-set on the lot document. The minimum increment and the optional ceiling price (buy-now) are checked inside the same update.
+- **Scheduled lots**: lots open and close at their exact times through delayed BullMQ jobs. A 5-minute cron sweep catches any lot that was due while Redis or the worker was down.
+- **Orders**: when a lot closes, the winning item is added to a pending order for that buyer and seller in one MongoDB transaction, so wins from one seller ship together. Payment is simulated (status changes only). Unpaid orders expire.
+- **Reviews**: buyers can review a seller once per completed order.
+- **Community**: articles, comments, likes, follows, views and a watchlist.
+- **Real-time**: a global chat lobby, private order chat between buyer and seller, live notifications and alerts to followers.
+- **Auth**: JWT, Google and Kakao sign-in, and roles (`USER`, `SELLER`, `ADMIN`). Users apply to become sellers, and admins approve them.
+- **Redis**:
+  - BullMQ queue for scheduling lots
+  - Rate limits on chosen mutations
+  - Query cache with version-key invalidation
+- **Admin**: moderation of members, sellers, lots, articles, notices and FAQ.
 
-## Project setup
+## Tech Stack
 
-```bash
-$ npm install
+| Area | Tech |
+|---|---|
+| Framework | NestJS 10, TypeScript |
+| API | GraphQL (Apollo Server 4, code-first), `graphql-upload` |
+| Database | MongoDB Atlas, Mongoose 8 |
+| Real-time | WebSocket (`@nestjs/platform-ws`, `ws`) |
+| Jobs | BullMQ, `@nestjs/schedule` |
+| Cache / limits | Redis 7, ioredis, `@nestjs/throttler` |
+| Auth | JWT, bcryptjs, Google (`google-auth-library`), Kakao |
+
+## Architecture
+
+A NestJS monorepo with two apps that share one MongoDB database and one Redis instance:
+
+```
+apps/
+  auctra-api/      GraphQL API + WebSocket gateway
+    src/
+      components/  member, auth, lot, bid, order, review, message,
+                   notification, watch, view, like, follow,
+                   article, comment, notice
+      schemas/     Mongoose models
+      socket/      WS gateway (rooms: lobby, lot:, member:, order:)
+      libs/        dto, enums, types, cache, interceptor, config
+  auctra-batch/    BullMQ worker (openLot / closeLot) + cron jobs
 ```
 
-## Compile and run the project
+- **API** handles GraphQL requests and WebSocket connections. On `createLot` and `updateLot` it adds delayed `openLot` / `closeLot` jobs.
+- **Batch** opens and closes lots, creates orders and expires unpaid orders. After each commit it calls the API's internal `POST /socket/emit` relay (protected by a shared secret), so results reach clients over the API's WebSocket.
+- Lot statuses: `SCHEDULED → OPEN → SOLD | UNSOLD` (or `CANCELLED` by an admin).
+- Order statuses: `PENDING_PAYMENT → PAID → SHIPPED → COMPLETED` (or `EXPIRED` / `CANCELLED`).
+
+## Getting Started
+
+Requirements: Node.js, a MongoDB database, Docker (for Redis).
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+docker compose up -d
 ```
 
-## Run tests
+Create a `.env` file in the project root:
+
+```
+NODE_ENV=development
+PORT_API=3009
+PORT_BATCH=3010
+MONGO_DEV=
+MONGO_PROD=
+SECRET_TOKEN=
+CORS_ORIGIN=http://localhost:3000
+REDIS_HOST=localhost
+REDIS_PORT=6379
+GOOGLE_CLIENT_ID=
+KAKAO_REST_KEY=
+KAKAO_CLIENT_SECRET=
+KAKAO_REDIRECT_URI=
+```
+
+Run the API and the batch worker in two terminals:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start:dev
+npm run start:dev:batch
 ```
 
-## Deployment
+GraphQL endpoint: `http://localhost:3009/graphql`. Uploaded images are served from `/uploads`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Scripts
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Command | Description |
+|---|---|
+| `npm run start:dev` | API in watch mode |
+| `npm run start:dev:batch` | Batch worker in watch mode |
+| `npm run build` | Build both apps to `dist/` |
+| `npm run start:prod` | Run the built API |
+| `npm run start:prod:batch` | Run the built batch worker |
+| `npm run format` | Prettier |
