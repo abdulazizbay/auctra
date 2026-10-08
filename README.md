@@ -101,3 +101,7 @@ GraphQL endpoint: `http://localhost:3009/graphql`. Uploaded images are served fr
 | `npm run start:prod` | Run the built API |
 | `npm run start:prod:batch` | Run the built batch worker |
 | `npm run format` | Prettier |
+
+## Author
+
+Abdulaziz Khalilov ([@abdulazizbay](https://github.com/abdulazizbay))
