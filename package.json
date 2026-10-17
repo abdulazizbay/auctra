@@ -73,6 +73,9 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^uuid$": "<rootDir>/apps/auctra-api/test/uuid-mock.ts"
+    },
     "roots": [
       "<rootDir>/apps/"
     ]
